@@ -90,40 +90,45 @@ class Heuristic:
 
 
 ################################################################################
-def new_state(tiles: Tuple[int, ...], x: int, y: int, width: int, d: str)\
+def next_states(tiles: Tuple[int, ...], x: int, y: int, width: int)\
  -> Tuple[int, ...]:
     """
     Get the new state based on which direction a tile will be sliding
     """
-    if d == "left":
+    states = {}
+    # Compare x and y to the width to see if it can go up, down, left or right
+    if x < width - 1: # Possible to move left
         print('Moving Left')
         new = list(tiles)
         print('Orig', new)
         new[x + y*width] = new[x + y*width + 1]
         new[x + y*width + 1] = 0
         print('New', new)
-    elif d == "right":
+        states.update({"H": [new]})
+    if x > 0: # Possible to move right 
         print('Moving Right')
         new = list(tiles)
         print('Orig', new)
         new[x + y*width] = new[x + y*width - 1]
         new[x + y*width - 1] = 0
         print('New', new)
-    elif d == "down":
-        print('Moving Down')
-        new = list(tiles)
-        print('Orig', new)
-        new[x + y*width] = new[x + y*width - width]
-        new[x + y*width - width] = 0
-        print('New', new)
-    elif d == "up":
+        states.update({"L": [new]})
+    if y < width - 1: # Possible to move up 
         print('Moving Up')
         new = list(tiles)
         print('Orig', new)
         new[x + y*width] = new[x + y*width + width]
         new[x + y*width + width] = 0
         print('New', new)
-        
+        states.update({"K": [new]})
+    if y > 0: # Possible to move down 
+        print('Moving Down')
+        new = list(tiles)
+        print('Orig', new)
+        new[x + y*width] = new[x + y*width - width]
+        new[x + y*width - width] = 0
+        print('New', new)
+        states.update({"L": [new]})
         
 ################################################################################
 def frontier_states(tiles: Tuple[int, ...]) -> dict:
@@ -142,6 +147,7 @@ def frontier_states(tiles: Tuple[int, ...]) -> dict:
     print('x0= ',x0)
     print('y0= ',y0)
     # Compare x and y to the width to see if it can go up, down, left or right
+    '''
     if x0 < width - 1: # Possible to move left
         new = new_state(tiles, x0, y0, width, "left") 
         states.update({"H": [new]})
@@ -154,6 +160,8 @@ def frontier_states(tiles: Tuple[int, ...]) -> dict:
     if y0 > 0: # Possible to move down 
         new = new_state(tiles, x0, y0, width, "down") 
         states.update({"L": [new]})
+    '''
+    states = next_states(tiles, x0, y0, width)
     # Find a way to add a switched version of the Tuple to a dictionary 
     
     return states
