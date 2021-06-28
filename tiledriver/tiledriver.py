@@ -140,9 +140,9 @@ tiles: Tuple[int, ...], q: object) -> Tuple[dict, object]:
     frontiers.update({tiles: cur_state})
     directions = ("H", "J", "K", "L")
     # Check to see if the state is already in the dictionary
-    print("New States", new_states)
-    #print("frontiers: ", frontiers) 
-    for key in enumerate(directions):
+    for direction in enumerate(directions):
+        key = direction[1] 
+        #print("Key: ", key)
         if key in new_states.keys():      # Check if direction is applicable
             cost = cur_state.cost + 1 
             print("Cost: ", cost)
@@ -152,7 +152,7 @@ tiles: Tuple[int, ...], q: object) -> Tuple[dict, object]:
                 # Compare the cost to get there
                 existing_state = frontiers[new_states[key]]
                     # Object of the existing state
-                print("existing state: ", existing_state)
+                print("existing state cost: ", existing_state.cost)
                 if cost < existing_state.cost:
                     print("Existing state has greater cost than new state")
                     existing_state.new_cost(cost)   # Update the cost
@@ -162,7 +162,7 @@ tiles: Tuple[int, ...], q: object) -> Tuple[dict, object]:
                 h = Heuristic.get(new_states[key])    # Get the heuristic
                 print("Heuristic: ", h)
                 obj = TileState(h, path, cost) 
-                print("Updating Frontiers..")
+                #print("Updating Frontiers..")
                 frontiers.update({new_states[key]: obj})
                 q.put((h + cost, new_states[key]))    # Add to queue
             # Could I accidentally circle back to the same state?
@@ -186,6 +186,7 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
     # Check for states that may not be able to be solved
     # Check that we are not repeating moves
     # Check that the queue is not empty
+    # Think of as many edge cases as you can
 
     state_dict = {}
     new_states = {}
@@ -211,17 +212,19 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
             cur_state, tiles, q)
         # Check that the queue is not empty!
         #while q:
-        #    print(q.get())
+        #print(q.get())
         if not q.empty():
             _, tiles = q.get()
         else:
-            print("Queue is empty")
+            #print("Queue is empty")
+            break
         #print("Pri: ", pri)
         #print("Next state: ", tiles) 
         # Remove explored state from frontiers
         print("Path: ", (frontiers[tiles]).path) 
+        print("State: ", tiles)
         cur_state = frontiers[tiles] 
-        print(cur_state.heuristic)
+        #print(cur_state.heuristic)
         if not cur_state.heuristic:
             break
     return cur_state.path 
@@ -237,7 +240,7 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
 
 def main() -> None:
     # init_state = 3, 7, 1, 4, 0, 2, 6, 8, 5 
-    init_state = 0, 2, 3, 1
+    init_state = 0, 1, 3, 2 
     path = solve_puzzle(init_state)
     print(path)
     #pass  # optional program test driver
