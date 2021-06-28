@@ -1,15 +1,13 @@
-################################################################################
 # Name:         Erin Rylie Clark
 # Course:       CSC 480
 # Instructor:   Daniel Kauffman
 # Assignment:   Tile Driver I
 # Term:         Summer 2021
-################################################################################
 import queue
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 ################################################################################
-class tile_state:
+class TileState:
     def __init__(self, heuristic, path, cost):
         self.heuristic = heuristic
         self.path = path
@@ -134,16 +132,17 @@ def next_states(tiles: Tuple[int, ...], x: int, y: int, width: int)\
         
 ################################################################################
 def check_frontier(frontiers: dict, new_states: dict, cur_state: object, \
-tiles: Tuple[int, ...], q: object): 
+tiles: Tuple[int, ...], q: object) -> Tuple[dict, object]: 
 #-> Tuple[dict, tuple[int,...],...]:
     """
+    Writing something to make the program happy
     """
     frontiers.update({tiles: cur_state})
-    directions = ("H","J","K","L")
+    directions = ("H", "J", "K", "L")
     # Check to see if the state is already in the dictionary
     print("New States", new_states)
     #print("frontiers: ", frontiers) 
-    for i, key in enumerate(directions):
+    for key in enumerate(directions):
         if key in new_states.keys():      # Check if direction is applicable
             cost = cur_state.cost + 1 
             print("Cost: ", cost)
@@ -154,7 +153,7 @@ tiles: Tuple[int, ...], q: object):
                 existing_state = frontiers[new_states[key]]
                     # Object of the existing state
                 print("existing state: ", existing_state)
-                if cost <  existing_state.cost:
+                if cost < existing_state.cost:
                     print("Existing state has greater cost than new state")
                     existing_state.new_cost(cost)   # Update the cost
                     existing_state.new_path(path)   # Update the path
@@ -162,7 +161,7 @@ tiles: Tuple[int, ...], q: object):
             else:   # Not on frontier, add it
                 h = Heuristic.get(new_states[key])    # Get the heuristic
                 print("Heuristic: ", h)
-                obj = tile_state(h, path, cost) 
+                obj = TileState(h, path, cost) 
                 print("Updating Frontiers..")
                 frontiers.update({new_states[key]: obj})
                 q.put((h + cost, new_states[key]))    # Add to queue
@@ -172,9 +171,9 @@ tiles: Tuple[int, ...], q: object):
     return frontiers, q
 
 ################################################################################
-def explore_next(frontiers: dict, q: object) -> object:
+#def explore_next(frontiers: dict, q: object) -> object:
     
-    return 
+#    return 
 
 ################################################################################
 def solve_puzzle(tiles: Tuple[int, ...]) -> str:
@@ -190,13 +189,13 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
 
     state_dict = {}
     new_states = {}
-    frontiers = {}
+    frontiers: Dict[Tuple[int, ...], object] = {}
     q = queue.PriorityQueue()
     width = int(len(tiles) ** 0.5)      # Width of puzzle
 
     # Add first state into the dictionary
     h = Heuristic.get(tiles)            # First get the heuristic
-    obj = tile_state(h, "", 0)          # Cost is 0 for first state, no path
+    obj = TileState(h, "", 0)          # Cost is 0 for first state, no path
     state_dict.update({tiles:obj})      # Add to dictionary
     cur_state = obj
     # Cycle through until we find the final state
@@ -209,11 +208,14 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
         # Get which state to explore next and updated list of frontiers 
         # cur_state = state_dict[tiles]
         frontiers, q = check_frontier(frontiers, new_states, \
-            cur_state,tiles, q)
+            cur_state, tiles, q)
         # Check that the queue is not empty!
         #while q:
         #    print(q.get())
-        pri, tiles = q.get()
+        if not q.empty():
+            _, tiles = q.get()
+        else:
+            print("Queue is empty")
         #print("Pri: ", pri)
         #print("Next state: ", tiles) 
         # Remove explored state from frontiers
@@ -222,23 +224,23 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
         print(cur_state.heuristic)
         if not cur_state.heuristic:
             break
-    return 
+    return cur_state.path 
 
 
 
 ################################################################################
-""" 
-    1. Given the initial state, determine what the next possible states are.
-    2. Get the Heuristic for each of those states and add states to the queue.
-    3. Check if one of those states is the end state?
-    4. Add dictionary entry with the string of moves to get to that state.
-"""
+ 
+# 1. Given the initial state, determine what the next possible states are.
+# 2. Get the Heuristic for each of those states and add states to the queue.
+# 3. Check if one of those states is the end state?
+# 4. Add dictionary entry with the string of moves to get to that state.
+
 def main() -> None:
-    # init_state = 3,7,1,4,0,2,6,8,5 
-    init_state = 0,2,3,1
+    # init_state = 3, 7, 1, 4, 0, 2, 6, 8, 5 
+    init_state = 0, 2, 3, 1
     path = solve_puzzle(init_state)
     print(path)
-    pass  # optional program test driver
+    #pass  # optional program test driver
 
 
 if __name__ == "__main__":
