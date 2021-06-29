@@ -8,16 +8,16 @@ from typing import List, Tuple, Dict
 
 ################################################################################
 class TileState:
-    def __init__(self, heuristic, path, cost):
-        self.heuristic = heuristic
-        self.path = path
-        self.cost = cost
+    def __init__(self, heuristic: int, path: str, cost: int):
+        self.heuristic: int = heuristic
+        self.path: str = path
+        self.cost: int = cost
 
-    def new_path(self, path):
-        self.path = path
+    def new_path(self, path: str):
+        self.path: str = path
 
-    def new_cost(self, cost):
-        self.cost = cost 
+    def new_cost(self, cost: int):
+        self.cost: int = cost 
     
 
 ################################################################################
@@ -137,8 +137,9 @@ last_char: str) -> dict:
     return states
         
 ################################################################################
-def check_frontier(frontiers: dict, new_states: dict, cur_state: object, \
-tiles: Tuple[int, ...], q: object) -> Tuple[dict, object]: 
+def check_frontier(frontiers: dict, new_states: dict, cur_state: TileState, \
+tiles: Tuple[int, ...], q: queue.PriorityQueue) -> \
+Tuple[dict, queue.PriorityQueue]: 
 #-> Tuple[dict, tuple[int,...],...]:
     """
     Writing something to make the program happy
@@ -202,23 +203,23 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
     # Check that the queue is not empty
     # Think of as many edge cases as you can
 
-    state_dict: Dict[Tuple[int, ...], object] = {}
-    new_states: Dict[Tuple[int, ...], object] = {}
-    frontiers: Dict[Tuple[int, ...], object] = {}
-    q: object = queue.PriorityQueue()
-    width = int(len(tiles) ** 0.5)      # Width of puzzle
+    state_dict: Dict[Tuple[int, ...], TileState] = {}
+    new_states: Dict[Tuple[int, ...], TileState] = {}
+    frontiers: Dict[Tuple[int, ...], TileState] = {}
+    q: queue.PriorityQueue = queue.PriorityQueue()
+    width: int = int(len(tiles) ** 0.5)      # Width of puzzle
 
     # Add first state into the dictionary
-    h = Heuristic.get(tiles)            # First get the heuristic
-    obj = TileState(h, "", 0)          # Cost is 0 for first state, no path
+    h: int = Heuristic.get(tiles)          # First get the heuristic
+    obj: TileState = TileState(h, "", 0)   # Cost is 0 for first state, no path
     state_dict.update({tiles:obj})      # Add to dictionary
-    cur_state = obj
-    last_char = "X"
+    cur_state: TileState = obj
+    last_char: str = "X"
     # Cycle through until we find the final state
     while True:
-        pos0 = tiles.index(0)           # Index of the empty spot in list
-        x0 = pos0 % width               # x position with respect to grid
-        y0 = pos0 // width              # y position with respect to grid
+        pos0: int = tiles.index(0)           # Index of the empty spot in list
+        x0: int = pos0 % width               # x position with respect to grid
+        y0: int = pos0 // width              # y position with respect to grid
         # Find what the next possible states are and return in a dictionary
         new_states = next_states(tiles, x0, y0, width, last_char)
         # Get which state to explore next and updated list of frontiers 
@@ -247,7 +248,7 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
         #print(cur_state.heuristic)
         if not cur_state.heuristic:
             break
-    return cur_state.path 
+    return str(cur_state.path)
 
 
 
@@ -260,7 +261,7 @@ def solve_puzzle(tiles: Tuple[int, ...]) -> str:
 
 def main() -> None:
     # init_state = 3, 7, 1, 4, 0, 2, 6, 8, 5 
-    init_state = 3, 2, 0, 1 
+    init_state = 2, 1, 0, 3 
     path = solve_puzzle(init_state)
     print(path)
     #pass  # optional program test driver
