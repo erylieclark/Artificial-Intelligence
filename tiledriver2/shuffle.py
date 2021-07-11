@@ -65,14 +65,14 @@ def create_initial_state(width: int) -> Tuple[int, ...]:
     Create num random initial states, check that they are solvable, then
     send the state back
     """
-    orig_state: list = list(range(0,width**2))
+    orig_state: list = list(range(0, width**2))
     
-    while(1):
+    while True:
         new_state: list = random.sample(orig_state, len(orig_state))
-        if is_solvable(new_state):
+        if is_solvable(tuple(new_state)):
             break
 
-    return new_state
+    return tuple(new_state)
 
 
 def compare_LCs(best_tiles: Tuple[int, ...], new_tiles: Tuple[int, ...], \
@@ -82,6 +82,7 @@ best_lc: int, change: int, width: int) -> Tuple[Tuple[int, ...], int, int]:
     Return a dictionary containing each of the new states.
     """
     best_state: Tuple[int, ...] = best_tiles
+    lc: int = 0                 # Number of linear conflicts for new state
     # Get the new number of linear conflicts
     lc = tiledriver.Heuristic._get_linear_conflicts(new_tiles, width)
     if (lc - best_lc) > change:
@@ -100,9 +101,8 @@ Tuple[Tuple[int, ...], int, int]:
     pos: int = tiles.index(0)   # Index of the empty spot in list
     x: int = pos % width        # x position with respect to grid
     y: int = pos // width       # y position with respect to grid
-    lc: int = 0                 # Number of linear conflicts for new state
     change: int = -2*((width - 1)**2 + (width - 2))
-    best_state: Tuple[int,...] = [] # Set to nothing, if this is passed back,
+    #best_state: Tuple[int, ...] = [] # Set to nothing, if this is passed back,
         # we know we are either at the top or on a plateau
 
     # Compare x and y to the width to see if it can go up, down, left or right
@@ -110,26 +110,26 @@ Tuple[Tuple[int, ...], int, int]:
         new = list(tiles)   # Turn Tuple into a list to modify
         new[x + y*width] = new[x + y*width + 1] # Move # to 0 spot
         new[x + y*width + 1] = 0        # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, new, best_lc, change,\
-            width)
+        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
+            change, width)
     if x > 0: # Possible to move right 
         new = list(tiles)   # Turn Tuple into a list to modify
         new[x + y*width] = new[x + y*width - 1] # Move # to 0 spot
         new[x + y*width - 1] = 0        # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, new, best_lc, change,\
-            width)
+        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
+            change, width)
     if y < width - 1: # Possible to move up 
         new = list(tiles)   # Turn Tuple into a list to modify
         new[x + y*width] = new[x + y*width + width] # Move # to 0 spot
         new[x + y*width + width] = 0    # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, new, best_lc, change,\
-            width)
+        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
+            change, width)
     if y > 0: # Possible to move down 
         new = list(tiles)   # Turn Tuple into a list to modify
         new[x + y*width] = new[x + y*width - width] # Move # to 0 spot
         new[x + y*width - width] = 0    # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, new, best_lc, change,\
-            width)
+        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
+            change, width)
     return best_state, best_lc, change
 
 
@@ -142,22 +142,19 @@ def conflict_tiles(width: int, min_lc: int) -> Tuple[int, ...]:
     >>> tiledriver.Heuristic._get_linear_conflicts(tiles, 3)
     5
     """
-    best_state: list = []   # Current best state
     best_lc: int = 0       # Number of linear conflicts of best state
     max_lc: int = 2*((width - 1)**2 + (width - 2))
     change: int = -1 
     max_plateau: int = 20
     k: int = 0
     print("Max Conflicts Possible: ", max_lc)
-    while(1):
+    while True:
         # Get a new random state
         if change < 0:
             new_state = tuple(create_initial_state(width))
             k = 0
-            #print("Restarting...")
         elif change == 0:
             k = k + 1
-            #print("Plateau...")
             if k > max_plateau:
                 new_state = tuple(create_initial_state(width))
                 k = 0
@@ -196,8 +193,8 @@ def shuffle_tiles(width: int, min_len: int,
 
 
 def main() -> None:
-    conflict_tiles(5,18)
-    pass  # optional program test driver
+    conflict_tiles(5, 18)
+    #pass  # optional program test driver
 
 
 if __name__ == "__main__":
