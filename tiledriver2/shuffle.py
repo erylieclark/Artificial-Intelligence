@@ -66,9 +66,10 @@ def create_initial_state(width: int) -> Tuple[int, ...]:
     send the state back
     """
     orig_state: list = list(range(0, width**2))
+    length = len(orig_state)
     
     while True:
-        new_state: list = random.sample(orig_state, len(orig_state))
+        new_state: list = random.sample(orig_state, length)
         if is_solvable(tuple(new_state)):
             break
 
@@ -87,50 +88,78 @@ best_lc: int, change: int, width: int) -> Tuple[Tuple[int, ...], int, int]:
     lc = tiledriver.Heuristic._get_linear_conflicts(new_tiles, width)
     if (lc - best_lc) > change:
         change = lc - best_lc
-    if lc > best_lc:
+    if lc >= best_lc:
         best_lc = lc
         best_state = new_tiles
     return best_state, best_lc, change 
 
-def next_states(tiles: Tuple[int, ...], width: int, best_lc: int) -> \
-Tuple[Tuple[int, ...], int, int]:
+
+def switch_tiles(tiles: Tuple[int, ...], width: int, x: int, y: int, d: int) \
+-> Tuple[int, ...]:
     """
     Get the set of new states based on which directions a tile can be moved.
     Return a dictionary containing each of the new states.
+    """
+    new = list(tiles)
+    if d == 0:
+        new = list(tiles)   # Turn Tuple into a list to modify
+        new[x + y*width] = new[x + y*width + 1] # Move # to 0 spot
+        new[x + y*width + 1] = 0        # Replace # with empty spot
+    elif d == 1:
+        new = list(tiles)   # Turn Tuple into a list to modify
+        new[x + y*width] = new[x + y*width - 1] # Move # to 0 spot
+        new[x + y*width - 1] = 0        # Replace # with empty spot
+    elif d == 2:
+        new = list(tiles)   # Turn Tuple into a list to modify
+        new[x + y*width] = new[x + y*width + width] # Move # to 0 spot
+        new[x + y*width + width] = 0    # Replace # with empty spot
+    elif d == 3:
+        new = list(tiles)   # Turn Tuple into a list to modify
+        new[x + y*width] = new[x + y*width - width] # Move # to 0 spot
+        new[x + y*width - width] = 0    # Replace # with empty spot
+    return tuple(new)
+
+
+def next_states(tiles: Tuple[int, ...], width: int, best_lc: int, \
+last_move: str) -> Tuple[Tuple[int, ...], int, int, str]:
+    """
+    Get the set of new states based on which directions a tile can be moved.
     """
     pos: int = tiles.index(0)   # Index of the empty spot in list
     x: int = pos % width        # x position with respect to grid
     y: int = pos // width       # y position with respect to grid
     change: int = -2*((width - 1)**2 + (width - 2))
-    #best_state: Tuple[int, ...] = [] # Set to nothing, if this is passed back,
-        # we know we are either at the top or on a plateau
+    best_state: Tuple[int, ...] = tiles # Set to current state
 
     # Compare x and y to the width to see if it can go up, down, left or right
     if x < width - 1:       # Possible to move left
-        new = list(tiles)   # Turn Tuple into a list to modify
-        new[x + y*width] = new[x + y*width + 1] # Move # to 0 spot
-        new[x + y*width + 1] = 0        # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
-            change, width)
+        if last_move != "L":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 0)
+            best_state, best_lc, change = compare_LCs(best_state, new, \
+                best_lc, change, width)
+            new_move = "H"
     if x > 0: # Possible to move right 
-        new = list(tiles)   # Turn Tuple into a list to modify
-        new[x + y*width] = new[x + y*width - 1] # Move # to 0 spot
-        new[x + y*width - 1] = 0        # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
-            change, width)
+        if last_move != "H":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 1)
+            best_state, best_lc, change = compare_LCs(best_state, new, \
+                best_lc, change, width)
+            new_move = "L"
     if y < width - 1: # Possible to move up 
-        new = list(tiles)   # Turn Tuple into a list to modify
-        new[x + y*width] = new[x + y*width + width] # Move # to 0 spot
-        new[x + y*width + width] = 0    # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
-            change, width)
+        if last_move != "J":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 2)
+            best_state, best_lc, change = compare_LCs(best_state, new, \
+                best_lc, change, width)
+            new_move = "K"
     if y > 0: # Possible to move down 
-        new = list(tiles)   # Turn Tuple into a list to modify
-        new[x + y*width] = new[x + y*width - width] # Move # to 0 spot
-        new[x + y*width - width] = 0    # Replace # with empty spot
-        best_state, best_lc, change = compare_LCs(tiles, tuple(new), best_lc,\
-            change, width)
-    return best_state, best_lc, change
+        if last_move != "K":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 3)
+            best_state, best_lc, change = compare_LCs(best_state, new, \
+                best_lc, change, width)
+            new_move = "J"
+    if not change:
+        best_state = new
+    last_move = new_move
+    return best_state, best_lc, change, last_move
 
 
 def conflict_tiles(width: int, min_lc: int) -> Tuple[int, ...]:
@@ -143,41 +172,54 @@ def conflict_tiles(width: int, min_lc: int) -> Tuple[int, ...]:
     5
     """
     best_lc: int = 0       # Number of linear conflicts of best state
-    max_lc: int = 2*((width - 1)**2 + (width - 2))
+    #max_lc: int = 2*((width - 1)**2 + (width - 2))
     change: int = -1 
-    max_plateau: int = 20
+    max_plateau: int = 40
     k: int = 0
-    print("Max Conflicts Possible: ", max_lc)
+    last_move: str = ""
+    #print("Max Conflicts Possible: ", max_lc)
+    #if width == 4: 
+    #    return tuple([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    #if width == 5: 
+    #    return tuple([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, \
+    #        16, 17, 18, 19, 20, 21, 22, 23, 24])
     while True:
         # Get a new random state
+        #print("Change: ", change)
         if change < 0:
             new_state = tuple(create_initial_state(width))
+            best_lc = tiledriver.Heuristic._get_linear_conflicts(\
+                new_state, width)
+            last_move = ""
+            #print("Going Downhill, Restart")
             k = 0
         elif change == 0:
             k = k + 1
+            #print("On a plateau, iteration #", k)
+            #print("State: ", new_state)
             if k > max_plateau:
                 new_state = tuple(create_initial_state(width))
+                best_lc = tiledriver.Heuristic._get_linear_conflicts(\
+                    new_state, width)
+                last_move = ""
                 k = 0
         else:
             k = 0
-        # Only use this state if it has more than third req linear conflicts
-        lc = tiledriver.Heuristic._get_linear_conflicts(new_state, width)
-        if lc < max_lc/3:   # Find a better place to start
-            continue
-        elif lc >= min_lc:  # In case we get lucky with min linear conflicts
-            print("Got Lucky")
-            print("Final State: ", new_state)
-            print("Linear Conflicts: ", lc)
+        if best_lc >= min_lc:  # In case we get lucky with min linear conflicts
+            #print("Got Lucky")
+            #print("Final State: ", new_state)
+            #print("Linear Conflicts: ", best_lc)
             return new_state
         # Otherwise, get the next possible states
-        new_state, best_lc, change = next_states(new_state, width, best_lc)
+        new_state, best_lc, change, last_move = \
+            next_states(new_state, width, best_lc, last_move)
+        #print("Best LC: ", best_lc)
         if best_lc >= min_lc:
             break
     
-    print("Final State: ", new_state)
-    print("Linear Conflicts: ", best_lc)
+    #print("Final State: ", new_state)
+    #print("Linear Conflicts: ", best_lc)
     return new_state
-
 
 def shuffle_tiles(width: int, min_len: int,
                   solve_puzzle: Callable[[Tuple[int, ...]], str]
@@ -193,7 +235,7 @@ def shuffle_tiles(width: int, min_len: int,
 
 
 def main() -> None:
-    conflict_tiles(5, 18)
+    conflict_tiles(3, 10)
     #pass  # optional program test driver
 
 
