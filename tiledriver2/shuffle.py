@@ -79,14 +79,16 @@ def create_initial_state(width: int) -> Tuple[int, ...]:
 def compare_LCs(best_tiles: Tuple[int, ...], new_tiles: Tuple[int, ...], \
 best_lc: int, change: int, width: int) -> Tuple[Tuple[int, ...], int, int]:
     """
-    Get the set of new states based on which directions a tile can be moved.
-    Return a dictionary containing each of the new states.
+    Determine if the given new state has a better linear conflict count than
+    the current best state/linear conflict count. Calculate the change in
+    linear conflicts to indicate if this state was better or worse than the
+    previous one.
     """
     best_state: Tuple[int, ...] = best_tiles
     lc: int = 0                 # Number of linear conflicts for new state
     # Get the new number of linear conflicts
     lc = tiledriver.Heuristic._get_linear_conflicts(new_tiles, width)
-    if (lc - best_lc) > change:
+    if (lc - best_lc) > change: 
         change = lc - best_lc
     if lc >= best_lc:
         best_lc = lc
@@ -97,8 +99,8 @@ best_lc: int, change: int, width: int) -> Tuple[Tuple[int, ...], int, int]:
 def switch_tiles(tiles: Tuple[int, ...], width: int, x: int, y: int, d: int) \
 -> Tuple[int, ...]:
     """
-    Get the set of new states based on which directions a tile can be moved.
-    Return a dictionary containing each of the new states.
+    Use the direction to move a tile and the empty tile location to switch the
+    number and the 0, then return the result.
     """
     new = list(tiles)
     if d == 0:
@@ -124,6 +126,9 @@ def next_states(tiles: Tuple[int, ...], width: int, best_lc: int, \
 last_move: str) -> Tuple[Tuple[int, ...], int, int, str]:
     """
     Get the set of new states based on which directions a tile can be moved.
+    Determine if the new states are better than the previously determined
+    best state. Keeps track of the last move made to that we are not back-
+    tracking if on a plateau.
     """
     pos: int = tiles.index(0)   # Index of the empty spot in list
     x: int = pos % width        # x position with respect to grid
@@ -156,9 +161,9 @@ last_move: str) -> Tuple[Tuple[int, ...], int, int, str]:
             best_state, best_lc, change = compare_LCs(best_state, new, \
                 best_lc, change, width)
             new_move = "J"
-    if not change:
-        best_state = new
-    last_move = new_move
+    if not change:  # All next possible states have the same lc count
+        best_state = new    # Set to most recent state explored
+    last_move = new_move    # Set the move that was made
     return best_state, best_lc, change, last_move
 
 
@@ -172,54 +177,122 @@ def conflict_tiles(width: int, min_lc: int) -> Tuple[int, ...]:
     5
     """
     best_lc: int = 0       # Number of linear conflicts of best state
-    #max_lc: int = 2*((width - 1)**2 + (width - 2))
     change: int = -1 
     max_plateau: int = 40
     k: int = 0
     last_move: str = ""
-    #print("Max Conflicts Possible: ", max_lc)
-    #if width == 4: 
-    #    return tuple([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
-    #if width == 5: 
-    #    return tuple([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, \
-    #        16, 17, 18, 19, 20, 21, 22, 23, 24])
     while True:
         # Get a new random state
-        #print("Change: ", change)
-        if change < 0:
-            new_state = tuple(create_initial_state(width))
+        if change < 0:  # Reached the peak, all next states are worse
+            new_state = create_initial_state(width)
             best_lc = tiledriver.Heuristic._get_linear_conflicts(\
-                new_state, width)
-            last_move = ""
-            #print("Going Downhill, Restart")
-            k = 0
-        elif change == 0:
+                new_state, width)   # New state, new LC Count
+            last_move = ""      # Reset the last move to nothing
+            k = 0               # Restarting, so reset plateau count
+        elif change == 0:   # On a plateau, only go so far on the plateau
             k = k + 1
-            #print("On a plateau, iteration #", k)
-            #print("State: ", new_state)
-            if k > max_plateau:
-                new_state = tuple(create_initial_state(width))
+            if k > max_plateau:     # Reached end of plateau limit
+                new_state = create_initial_state(width)
+
                 best_lc = tiledriver.Heuristic._get_linear_conflicts(\
-                    new_state, width)
-                last_move = ""
-                k = 0
-        else:
+                    new_state, width)   # New state, new LC count
+                last_move = ""   # Reset the last move to nothing
+                k = 0               # Restarting, so reset plateau count
+        else:   # Change was better, keep going on this path
             k = 0
         if best_lc >= min_lc:  # In case we get lucky with min linear conflicts
-            #print("Got Lucky")
-            #print("Final State: ", new_state)
-            #print("Linear Conflicts: ", best_lc)
             return new_state
         # Otherwise, get the next possible states
         new_state, best_lc, change, last_move = \
             next_states(new_state, width, best_lc, last_move)
-        #print("Best LC: ", best_lc)
-        if best_lc >= min_lc:
+        if best_lc >= min_lc:   # Stop when we find the desired LC count
             break
     
-    #print("Final State: ", new_state)
-    #print("Linear Conflicts: ", best_lc)
     return new_state
+
+def branch_next_states(tiles: Tuple[int, ...], width: int, \
+last_move: str) -> Tuple[List[Tuple[int, ...]], List[int]]:
+    """
+    Get the set of new states based on which directions a tile can be moved.
+    Keeps track of the last move made to that we are not back-tracking if 
+    on a plateau.
+    """
+    pos: int = tiles.index(0)   # Index of the empty spot in list
+    x: int = pos % width        # x position with respect to grid
+    y: int = pos // width       # y position with respect to grid
+    states: List[Tuple[int, ...]] = [] 
+    moves: List[int] = []
+
+    # Compare x and y to the width to see if it can go up, down, left or right
+    if x < width - 1:       # Possible to move left
+        if last_move != "L":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 0)
+            states.append(new)
+            moves.append("H")
+    if x > 0: # Possible to move right 
+        if last_move != "H":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 1)
+            states.append(new)
+            moves.append("L")
+    if y < width - 1: # Possible to move up 
+        if last_move != "J":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 2)
+            states.append(new)
+            moves.append("K")
+    if y > 0: # Possible to move down 
+        if last_move != "K":    # Prevent reversing the last move
+            new = switch_tiles(tiles, width, x, y, 3)
+            states.append(new)
+            moves.append("J")
+    return states, moves
+
+def branch_states(base: List[Tuple[int, ...]], base_last_move: List[str],\
+branch_last_move: List[str], width: int, K: int, B: int) \
+-> Tuple[List[Tuple[int, ...]], int]:
+    
+    """
+    Create a solvable shuffled puzzle of the given width with an optimal
+    solution length equal to or greater than the given minimum length.
+    """
+   
+    i: int = 0
+    j: int = 0
+    count: int = 0
+    branched_states: list(Tuple[int, ...]) = [None]*(K*B)
+    states: List[Tuple[int, ...]] = [] 
+    moves: List[int] = []
+
+    # Take each base state and get the next two possible branches
+    for i in range(K):
+        states, moves = branch_next_states(base[i], width, base_last_move[i])
+        for j in range(len(states)): # WHILE LESS THAN BRANCHING FACTOR!!!
+            branched_states[count] = states[j]
+            branch_last_move[count] = moves[j]
+            print("Next State #", count,": ", states[j])
+            count = count + 1       # Number of states we are collecting
+    return branched_states, count
+
+def check_heuristic(branches: List[Tuple[int, ...]], count: int)\
+-> Tuple[List[Tuple[int, ...]], List[int]]:
+    
+    """
+    Check the heuristic of all the new branches to see which ones to keep
+    """
+    i: int = 0
+    h: List[int] = [0]*count
+    print("Count: ", count)
+    print("H: ", h)
+
+    for i in range(count):
+        h[i] = tiledriver.Heuristic.get(branches[i])  # Get the heuristic
+        print("Heuristic of #", i, ": ", h[i])
+    for i in range(count):
+        if h[i] > (min_len-width):
+            print("Branch num: ", i)
+            path = tiledriver.solve_puzzle(branches[i])
+            print(path)
+    return branches, h
+
 
 def shuffle_tiles(width: int, min_len: int,
                   solve_puzzle: Callable[[Tuple[int, ...]], str]
@@ -232,10 +305,37 @@ def shuffle_tiles(width: int, min_len: int,
     >>> len(tiledriver.solve_puzzle(tiles))
     6
     """
+    K: int = 5     # Active States
+    B: int = 2      # Branching Factor
+    i: int = 0
+    count: int = 0
+    base_states: List[Tuple[int, ...]] = [] 
+    branches: List[Tuple[int, ...]] = []
+    branch_heur: list(int) = [None]*(K*B) 
+    base_last_move: list(str) = [""]*K 
+    branch_last_move: list(str) = [""]*(K*B) 
+
+    # First grab the initial active states randomly
+    for i in range(K):
+        base_states.append(create_initial_state(width))
+    print(base_states)
+
+    # Branch them
+    branches, count = branch_states(base_states, base_last_move, \
+        branch_last_move, width, K, B)
+
+    # Check the heuristic on all of them
+    check_heuristic(branches, count)
+
+    # Take the top k/2 and then randomly choose the remaining states
+
+
+
 
 
 def main() -> None:
-    conflict_tiles(3, 10)
+    #conflict_tiles(3, 10)
+    shuffle_tiles(2, 6, tiledriver.solve_puzzle)
     #pass  # optional program test driver
 
 
