@@ -246,9 +246,9 @@ last_move: str) -> Tuple[List[Tuple[int, ...]], List[int]]:
             moves.append("J")
     return states, moves
 
-def branch_states(base: List[Tuple[int, ...]], base_last_move: List[str],\
-branch_last_move: List[str], width: int, K: int, B: int) \
--> Tuple[List[Tuple[int, ...]], int]:
+def branch_states(base: List[Tuple[int, ...]], base_last_move: List[str], \
+width: int, K: int, B: int) \
+-> Tuple[List[Tuple[int, ...]], List[str], int]:
     
     """
     Create a solvable shuffled puzzle of the given width with an optimal
@@ -259,40 +259,66 @@ branch_last_move: List[str], width: int, K: int, B: int) \
     j: int = 0
     count: int = 0
     branched_states: list(Tuple[int, ...]) = [None]*(K*B)
+    branch_last_move: List[str] = [""]*(K*B) 
     states: List[Tuple[int, ...]] = [] 
     moves: List[int] = []
 
     # Take each base state and get the next two possible branches
     for i in range(K):
         states, moves = branch_next_states(base[i], width, base_last_move[i])
-        for j in range(len(states)): # WHILE LESS THAN BRANCHING FACTOR!!!
+        j = 0
+        while j < len(states) and j < B:
             branched_states[count] = states[j]
             branch_last_move[count] = moves[j]
-            print("Next State #", count,": ", states[j])
             count = count + 1       # Number of states we are collecting
-    return branched_states, count
+            j = j + 1
+    return branched_states, branch_last_move, count
 
-def check_heuristic(branches: List[Tuple[int, ...]], count: int)\
--> Tuple[List[Tuple[int, ...]], List[int]]:
-    
+def check_heuristic(branches: List[Tuple[int, ...]], count: int, \
+min_heuristic: int) -> Tuple[List[int], int, str]:
     """
     Check the heuristic of all the new branches to see which ones to keep
     """
     i: int = 0
     h: List[int] = [0]*count
-    print("Count: ", count)
-    print("H: ", h)
+    path_length: int = 0
+    longest_path: str = ""
 
     for i in range(count):
         h[i] = tiledriver.Heuristic.get(branches[i])  # Get the heuristic
-        print("Heuristic of #", i, ": ", h[i])
     for i in range(count):
-        if h[i] > (min_len-width):
-            print("Branch num: ", i)
+        if h[i] > min_heuristic:
             path = tiledriver.solve_puzzle(branches[i])
-            print(path)
-    return branches, h
+            if len(path) > path_length:
+                path_length = len(path)
+                longest_path = path
+            # print(path)
+    return h, path_length, longest_path
 
+
+def choose_top_K_states(branches: List[Tuple[int, ...]], \
+branch_last_move: List[str], h: List[int], K: int) \
+-> List[Tuple[int, ...]]:
+    """
+    Choose K states out of the K*B branches from the last set of base states 
+    """
+    i: int = 0
+    base_states: List[Tuple[int, ...]] = [] 
+    base_last_move: List[str] = [] 
+    # Choose K/2 top best heuristics
+    sorted_H_idx = sorted(range(len(h)), key=lambda i: h[i])
+    for i in range(int(K/2)):
+        base_states.append(branches[sorted_H_idx[-1]])
+        base_last_move.append(branch_last_move[sorted_H_idx[-1]])
+        sorted_H_idx.remove(sorted_H_idx[-1])
+
+    # Choose K/2 random of the remaining branches
+    random.shuffle(sorted_H_idx)
+    for i in range(int(K/2)):
+        base_states.append(branches[sorted_H_idx[-1]])
+        base_last_move.append(branch_last_move[sorted_H_idx[-1]])
+        sorted_H_idx.remove(sorted_H_idx[-1])
+    return base_states, base_last_move
 
 def shuffle_tiles(width: int, min_len: int,
                   solve_puzzle: Callable[[Tuple[int, ...]], str]
@@ -305,37 +331,49 @@ def shuffle_tiles(width: int, min_len: int,
     >>> len(tiledriver.solve_puzzle(tiles))
     6
     """
-    K: int = 5     # Active States
-    B: int = 2      # Branching Factor
+    K: int = 20      # Active States (Keep this even!)
+    B: int = 3      # Branching Factor
     i: int = 0
     count: int = 0
     base_states: List[Tuple[int, ...]] = [] 
     branches: List[Tuple[int, ...]] = []
-    branch_heur: list(int) = [None]*(K*B) 
-    base_last_move: list(str) = [""]*K 
-    branch_last_move: list(str) = [""]*(K*B) 
+    branch_heur: List[int] = [None]*(K*B) 
+    base_last_move: List[str] = [""]*K 
+    branch_last_move: List[str] = [""]*(K*B) 
+    h: List[int] = []
+    path_length: int = 0
+    path: str = ""
+
+    min_heuristic: int = 24
 
     # First grab the initial active states randomly
     for i in range(K):
         base_states.append(create_initial_state(width))
-    print(base_states)
+    #print(base_states)
+    while True:
+        # Branch them
+        branches, branch_last_move, count = branch_states(base_states, \
+            base_last_move, width, K, B)
 
-    # Branch them
-    branches, count = branch_states(base_states, base_last_move, \
-        branch_last_move, width, K, B)
+        # Check the heuristic on all of them
+        h, path_length, path = check_heuristic(branches, count, min_heuristic)
+    
+        # Check if the path length is long enough
+        if path_length >= min_len:
+            #print("Found a long enough path: ", path)
+            #print("Length: ", path_length)
+            return path
 
-    # Check the heuristic on all of them
-    check_heuristic(branches, count)
-
-    # Take the top k/2 and then randomly choose the remaining states
-
-
-
+        # Take the top k/2 and then randomly choose the remaining states
+        base_states, base_last_move = choose_top_K_states(branches, \
+            branch_last_move, h, K)
+        #print("Base states: ", base_states)
+        #print("Base last move: ", base_last_move)
 
 
 def main() -> None:
     #conflict_tiles(3, 10)
-    shuffle_tiles(2, 6, tiledriver.solve_puzzle)
+    print(shuffle_tiles(3, 29, tiledriver.solve_puzzle))
     #pass  # optional program test driver
 
 
