@@ -85,19 +85,36 @@ def filter_adj_idxs(clues: List[int], adj_idxs: List[int]) -> List[int]:
     """
     Remove explored spots from the adjacent spots list 
     """
-    for i in range(len(adj_idxs)):
+    i: int = 0
+    while i < len(adj_idxs):
         if clues[adj_idxs[i]] != -1:
             adj_idxs.pop(i)
+        else:
+            i += 1
 
     return adj_idxs
 
+
+def start_board(bm: BoardManager, reveal_idx: int, \
+domains: List[List[int]], clues: List[int]) \
+-> Tuple[List[List[int]], List[int]]:
+    """
+    Open the first spot on the board in addition to the surrounding spots
+    """
+    domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
+    print("0 Domain: ", domains[0][0])
+    for i, reveal_idx in enumerate(domains[0][0]):
+        print("IDX: ", reveal_idx)
+        domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
+        
+    return domains, clues
 
 
 def explore_new_spot(bm: BoardManager, reveal_idx: int, \
 domains: List[List[int]], clues: List[int]) \
 -> Tuple[List[List[int]], List[int]]:
     """
-        
+    Open the specified new spot on the board and get the clue        
     """
     adj_idxs: List[int] = []
     clues[reveal_idx] = bm.move(reveal_idx)
@@ -109,12 +126,12 @@ domains: List[List[int]], clues: List[int]) \
     adj_idxs = filter_adj_idxs(clues, adj_idxs)
     print("Filtered Adjacent Indexes: ", adj_idxs)
     domains[reveal_idx] = get_domain(clues[reveal_idx], adj_idxs)
-
     return domains, clues 
+
 
 def get_domain(clue: int, adj_idxs: List[int]) -> List[int]:
     """
-    get the domain of the spot just explored 
+    Get the domain of the spot just explored 
     """
     domain: List[List[int]] = [[]]*len(adj_idxs) 
     for i in range(-1, len(adj_idxs)-1):
@@ -143,15 +160,16 @@ def sweep_mines(bm: BoardManager) -> List[List[int]]:
     [[0, 1, 1], [0, 2, -1], [0, 2, -1], [0, 1, 1]]
     """
     # Figure out how big the board is
-    board_width, board_length = bm.size
+    board_length, board_width = bm.size
     board_size: int = board_width*board_length 
     # Create a list of lists to keep track of explored states
     domains: List[List[int]] = [[]]*board_size
     clues: List[int] = [-1]*board_size
     reveal_idx: int = 0
     # Make the first move by getting index 0, should be 0
+    domains, clues = start_board(bm, reveal_idx, domains, clues)
     while True:
-        domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
+        #domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
         # Get the domains of the ones that have not been explored
         # May want to filter out what has been explored?
         #domains = get_new_domains(domains, adj_idxs)
