@@ -81,6 +81,16 @@ def print_my_board(clues: List[int], width: int, length: int):
         print(clues[i*width:i*width+width])
 
 
+def print_domains(domains: List[List[int]], clues: List[int]):
+    """
+    print the domains of the unexplored spots 
+    """
+    print("----------------------- Domains --------------------")
+    for i in range(len(clues)):
+        if clues[i] == -1:
+            print("IDX: ", domains[i])
+
+
 def filter_adj_idxs(clues: List[int], adj_idxs: List[int]) -> List[int]:
     """
     Remove explored spots from the adjacent spots list 
@@ -95,21 +105,6 @@ def filter_adj_idxs(clues: List[int], adj_idxs: List[int]) -> List[int]:
     return adj_idxs
 
 
-def start_board(bm: BoardManager, reveal_idx: int, \
-domains: List[List[int]], clues: List[int]) \
--> Tuple[List[List[int]], List[int]]:
-    """
-    Open the first spot on the board in addition to the surrounding spots
-    """
-    domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
-    print("0 Domain: ", domains[0][0])
-    for i, reveal_idx in enumerate(domains[0][0]):
-        print("IDX: ", reveal_idx)
-        domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
-        
-    return domains, clues
-
-
 def explore_new_spot(bm: BoardManager, reveal_idx: int, \
 domains: List[List[int]], clues: List[int]) \
 -> Tuple[List[List[int]], List[int]]:
@@ -119,13 +114,16 @@ domains: List[List[int]], clues: List[int]) \
     adj_idxs: List[int] = []
     clues[reveal_idx] = bm.move(reveal_idx)
     print("Index: ", reveal_idx)
-    print("Clue: ", clues[reveal_idx])
-    # Get the adjacent indices
-    adj_idxs = bm.get_adjacent(reveal_idx)
-    print("Adjacent Indexes: ", adj_idxs)
-    adj_idxs = filter_adj_idxs(clues, adj_idxs)
-    print("Filtered Adjacent Indexes: ", adj_idxs)
-    domains[reveal_idx] = get_domain(clues[reveal_idx], adj_idxs)
+    #print("Clue: ", clues[reveal_idx])
+    if not clues[reveal_idx]:
+        # Get the adjacent indices
+        adj_idxs = bm.get_adjacent(reveal_idx)
+        #print("Adjacent Indexes: ", adj_idxs)
+        adj_idxs = filter_adj_idxs(clues, adj_idxs)
+        #print("Filtered Adjacent Indexes: ", adj_idxs)
+        domains[reveal_idx] = get_domain(clues[reveal_idx], adj_idxs)
+        domains[reveal_idx] = domains[reveal_idx][0:1]
+    print("Domain: ", domains[reveal_idx])
     return domains, clues 
 
 
@@ -138,13 +136,69 @@ def get_domain(clue: int, adj_idxs: List[int]) -> List[int]:
         mine_idx = adj_idxs.copy()
         for j in range(clue):
             mine_idx[i+j] = mine_idx[i+j]*-1     
-        print(i)
         domain[i+1] = mine_idx
 
-    print("Domain: ", domain)
     return domain   
+
+
+def fill_new_domains(bm: BoardManager, domains: List[List[int]], \
+clues: List[int], new_reveals: List[int]) -> Tuple[List[List[int]], List[int]]:
+    """
+    Recalc domains that contain an explored value
+    """
+    # Pass in list of new domains that need to be cleaned up
+    undecided: List[int] = []
+    # One method: find all domains that have more than 1 in the list, then
+    #   recalc adjacent vals, filter, and get domains
+    for i in range(len(domains)):
+        if len(domains[i]) > 1:
+            undecided.append(i)
+            
+        elif i in new_reveals:
+            adj_idxs = bm.get_adjacent(i)
+            adj_idxs = filter_adj_idxs(clues, adj_idxs)
+            domains[i] = get_domain(clues[i], adj_idxs) 
+            print("Domain for index", i)
+            print("     ", domains[i])
+            undecided.append(i)
+
+    return domains, undecided 
      
 
+
+def get_new_arcs(undecided: List[int]) -> List[List[int]]:
+#queue: List[List[int]]) 
+    """
+    Get the arcs based on what was recently explored and what is undecided
+    """
+    i: int = 0
+    queue: List[List[int]] = [[]]*len(undecided)*(len(undecided)-1) 
+    q = itertools.permutations(undecided, 2)
+    for perm in list(q):
+        queue[i] = perm
+        i += 1
+
+    print("Queue: ", queue)
+
+    return queue
+
+
+def reduce_domains(domains: List[List[int]], queue: List[List[int]]) \
+-> Tuple[List[List[int]], List[int]]:
+    """
+    Recalc domains that contain an explored value
+    """
+    reveal_list: List[int] = []
+    # Take out any list of the second value that does not contain a combination
+    #   from the first value
+    # Look in the second value to see if any of the numbers are consistently
+    #   positive or negative, mark as either a mine or not a mine and add to
+    #   reveal list if not a mine
+    # If nothing comes of the change in domain, add it back to the queue
+    
+
+
+    return domains, reveal_list
 
 def sweep_mines(bm: BoardManager) -> List[List[int]]:
     """
@@ -165,15 +219,33 @@ def sweep_mines(bm: BoardManager) -> List[List[int]]:
     # Create a list of lists to keep track of explored states
     domains: List[List[int]] = [[]]*board_size
     clues: List[int] = [-1]*board_size
-    reveal_idx: int = 0
+    reveal_list: List[int] = [0]
+    new_reveals: List[int] = []
+    arc_queue: List[List[int]] = [[]]
     # Make the first move by getting index 0, should be 0
-    domains, clues = start_board(bm, reveal_idx, domains, clues)
     while True:
-        #domains, clues = explore_new_spot(bm, reveal_idx, domains, clues)
-        # Get the domains of the ones that have not been explored
-        # May want to filter out what has been explored?
-        #domains = get_new_domains(domains, adj_idxs)
+        new_reveals = []
+        while len(reveal_list): # Open up the board as much as possible
+            domains, clues = explore_new_spot(bm, reveal_list[0], \
+                domains, clues)
+            if not clues[reveal_list[0]]: # If the clue was zero
+                # Add all of the adjacent spots to the board
+                reveal_list.extend(domains[reveal_list[0]][0])
+                # Remove duplicates
+                reveal_list = list(dict.fromkeys(reveal_list))
+            else:
+                # Keep track of spots that have mines next to them
+                new_reveals.append(reveal_list[0])
+            reveal_list.pop(0) # Remove revealed index from list
+        print("New Reveals: ", new_reveals)
+        domains, undecided = fill_new_domains(bm, domains, clues, new_reveals)
+        print("Undecided: ", undecided)
+        # Get arcs
+        arc_queue = get_new_arcs(undecided) 
+        # Reduce Domains
+        domains, reveal_list = reduce_domains(domains, arc_queue)
         print_my_board(clues, board_width, board_length)
+        #print_domains(domains, clues)
         break
 
 
