@@ -176,22 +176,16 @@ clues: List[int], new_reveals: List[int]) \
 
 
 def get_new_arcs(undecided: List[int], arc_filter: int) -> List[List[int]]:
-#queue: List[List[int]]) 
     """
     Get the arcs based on what was recently explored and what is undecided
     """
     i: int = 0
     queue: List[List[int]] = [[0]]*len(undecided)*(len(undecided)-1) 
-    print("queue: ", queue)
     q = itertools.permutations(undecided, 2)
-    print("q: ", q)
     q = list(q)
-    print("list q: ", q)
     for perm in q:
-        print("perm: ", perm)
         queue[i] = list(perm)
         i += 1
-    print("queue after: ", queue)
     
     if arc_filter:
         i = 0
@@ -200,10 +194,6 @@ def get_new_arcs(undecided: List[int], arc_filter: int) -> List[List[int]]:
                 queue.pop(i)
             else:
                 i += 1
-                
-
-    #print("    New Arcs: ", queue)
-
     return queue
 
 
@@ -241,7 +231,6 @@ def shared_spaces(d1: List[List[int]], d2: List[List[int]]) \
     #print("    D2: ", d2)
     #print("D2 List: ", d2_list)
     # Loop through d1 values and check if they are in d2
-    print("d1[0]: ", d1[0])
     for i, space in enumerate(d1[0]):
         if abs(space) in d2_list:
             shared_spaces.append(abs(space))
@@ -249,7 +238,6 @@ def shared_spaces(d1: List[List[int]], d2: List[List[int]]) \
             keep_idx2.append(d2_list.index(abs(space)))
             shared = True
             j += 1
-        print("i: ", i)
     #print("Shared Spaces: ", shared_spaces)
     #print("Keep IDX 1: ", keep_idx1)
     #print("Keep IDX 2: ", keep_idx2)
@@ -264,30 +252,26 @@ def shared_spaces(d1: List[List[int]], d2: List[List[int]]) \
     return shared, d1, d2
 
 
-def compare_shared(d1: List[List[int]], d2: List[List[int]]) -> List[int]:
+def compare_shared(d1: List[List[int]], d2: List[List[int]]) \
+-> List[int]:
     """
     Check if any reductions can be made
     """
-    #print("D1: ", d1)
-    #print("D2: ", d2)
     s1: Set[int] = {0}
     s2: Set[int] = {0}
     idxs: List[int] = []
-    for i in range(len(d1)):
-        #print("D1[i]: ", d1[i])
+    for i in range(len(d1)):    # First reduce to just the subsets
         s1 = set(d1[i])
-        #print("Subset 1: ", s1)
         for j in range(len(d2)):
             s2 = set(d2[j])
-            #print("Subset 2: ", s2)
             if s1.issubset(s2):
-                #print("Subset Exists")
                 idxs.append(i)
                 break
+        
     return idxs
 
-def reduce_domains(domains: List[List[List[int]]], queue: List[List[int]], \
-undecided: List[int]) -> List[List[List[int]]]:
+def reduce_domains(domains: List[List[List[int]]], \
+queue: List[List[int]], undecided: List[int]) -> List[List[List[int]]]:
     """
     Recalc domains that contain an explored value
     """
@@ -304,33 +288,30 @@ undecided: List[int]) -> List[List[List[int]]]:
     while i < len(queue):
         arc1 = queue[i][0]
         arc2 = queue[i][1]
+        
+        print("arc1: ", arc1)
+        print("arc2: ", arc2)
         shared, d1, d2 = shared_spaces(domains[arc1].copy(), \
             domains[arc2].copy())
         if shared: 
+            print("Shared.")
             keep_idxs = compare_shared(d1, d2)
-            #print("Idx's to keep: ", keep_idxs)
+            print("Idx's to keep: ", keep_idxs)
+            print("Len of arc1: ", len(domains[arc1]))
             if len(keep_idxs) < len(domains[arc1]):
-                #print("Arc1: ", arc1)
-                #print("   Domain: ", domains[arc1])
-                #print("Arc2: ", arc2)
-                #print("   Domain: ", domains[arc2])
+                print("Arc1: ", arc1)
+                print("   Domain: ", domains[arc1])
+                print("Arc2: ", arc2)
+                print("   Domain: ", domains[arc2])
                 #print("    Reductions Available")
- ###########################################################################
-    # If len of keep_idxs is 1, a decision can be made, remove from undecided??
                 # Reductions to be made
                 #print("    Domain: ", domains[arc1])
                 domains[arc1] = select(domains[arc1], keep_idxs)
                 # Add new arcs to queue
                 #print("    Current Queue: ", queue)
-                #print("    Reduced Domain: ", domains[arc1])
+                print("    Reduced Domain: ", domains[arc1])
                 queue.extend(get_new_arcs(undecided, arc1))
-                #print("    Extended Queue: ", queue)
-            #else:
-                #print("    No Reductions.")
-                
-            #i += 1
         queue.pop(i)
-    #print("New Queue: ", queue)
 
     return domains
 
@@ -363,8 +344,31 @@ new_reveals: List[int]) -> Tuple[List[List[List[int]]], List[int]]:
     return domains, undecided
 
 
+def compare_mines_domains(domains: List[List[List[int]]], clues: List[int], \
+mines: List[int]) -> List[List[List[int]]]:
+    """
+    Gather more information using the known mine locations
+    """
+    print("================================= Compare ==========================")
+    for i in range(len(domains)):
+        if len(domains[i]) > 1:
+            print("Mines: ", mines)
+            print("Domain: ", domains[i])
+            shared, m, d = shared_spaces([mines].copy(), domains[i].copy())
+            print(shared)
+            print("m: ", m)
+            print("d: ", d)
+            if shared and clues[i] == 1 and len(m) == 1:
+                keep_idxs = compare_shared(d, m)
+                print("Keep_idxs: ", keep_idxs)
+                domains[i] = select(domains[i], keep_idxs)
+                print("Reduced Domain: ", domains[i])
+
+    return domains
+    
+
 def infer_safe_spots(domains: List[List[List[int]]], \
-undecided: List[int]) -> Tuple[List[List[List[int]]], List[int]]:
+undecided: List[int]) -> Tuple[List[List[List[int]]], List[int], List[int]]:
     """
     Determine what spots are safe to explore next
     """
@@ -379,27 +383,18 @@ undecided: List[int]) -> Tuple[List[List[List[int]]], List[int]]:
             # If only one left in domain, we know what is an isn't a mine
             for _, mine in enumerate(domains[undecided[i]][0]):
                 if mine < 0:
-                    mines.append(abs(mine))
+                    mines.append(mine)
                 else:
                     new_reveals.append(mine) 
         else:   # See if any consistent values
-            ################################################################
-            #print("Checking for consistent values")
             d = domains[undecided[i]]
-            #print("Undecided Domain: ", undecided[i])
-            #print("    Domain: ", d)
-            #for spot in range(len(d[0])):
             spot = 0
             while spot < len(d[0]):
                 for mine_set in range(len(d)):
                     if d[mine_set][spot] > 0:
-                        #print("Val: ", d[mine_set][spot])
                         not_a_mine = True
-                        #print("    Not a Mine")
                     else:
-                        #print("Val: ", d[mine_set][spot])
                         not_a_mine = False
-                        #print("    Mine")
                         break
                 if not_a_mine:
                     #print("Domain with non-mine: ", d)
@@ -415,7 +410,7 @@ undecided: List[int]) -> Tuple[List[List[List[int]]], List[int]]:
     mines = list(dict.fromkeys(mines))
     print("Mines: ", mines)
 
-    return domains, new_reveals
+    return domains, new_reveals, mines
 
 
 def sweep_mines(bm: BoardManager) -> List[List[int]]:
@@ -439,6 +434,7 @@ def sweep_mines(bm: BoardManager) -> List[List[int]]:
     clues: List[int] = [-1]*board_size
     reveal_list: List[int] = [0]
     new_reveals: List[int] = []
+    mines: List[int] = []
     arc_queue: List[List[int]] = [[]]
     # Make the first move by getting index 0, should be 0
     while True:
@@ -455,25 +451,30 @@ def sweep_mines(bm: BoardManager) -> List[List[int]]:
                 # Keep track of spots that have mines next to them
                 new_reveals.append(reveal_list[0])
             reveal_list.pop(0) # Remove revealed index from list
+        print("New Reveals: ", new_reveals)
         #print("New Reveals: ", new_reveals)
         domains, undecided = reduce_new_reveal_domains(domains, new_reveals)
         print("Domains: ", domains)
         domains, ud = fill_new_domains(bm, domains, clues, new_reveals)
+        print("filled Domains: ", domains)
         undecided.extend(ud)
-        #print("Undecided: ", undecided)
+        print("Undecided: ", undecided)
         # Get arcs
         arc_queue = get_new_arcs(undecided, 0) 
         # Reduce Domains
         domains = reduce_domains(domains, arc_queue, undecided)
-        domains, new_reveals = infer_safe_spots(domains, undecided)
+        domains = compare_mines_domains(domains, clues, mines)
+        domains, new_reveals, m = infer_safe_spots(domains, undecided)
+        mines.extend(m)
         if len(new_reveals) < 1:
+            print("No more reveals")
             board = print_my_board(clues, board_width, board_length)
             return board
         else:
             reveal_list.extend(new_reveals)
         board = print_my_board(clues, board_width, board_length)
         #print("Mines: ", mines)
-        #print("New Reveals: ", new_reveals)
+        print("New Reveals: ", new_reveals)
         #print("Reveal List: ", reveal_list)
         #print_domains(domains, clues)
         #break
@@ -484,10 +485,13 @@ def main() -> None:  # optional driver
     #board = [[0, 1, 1], [0, 2, -1], [0, 2, -1], [0, 1, 1]]
     #board = [[0, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 1, -1, 2, 1], \
     #    [1, 2, 1, 2, -1], [-1, 1, 0, 1, 1]]
-    board = [[0, 1, 1, 1], [1, 2, -1, 2], [1, -1, 3, -1], \
-        [1, 1, 2, 1]]
+    #board = [[0, 1, 1, 1], [1, 2, -1, 2], [1, -1, 3, -1], \
+    #    [1, 1, 2, 1]]
     #board = [[0, 1, -1, 1], [1, 2, 1, 1], [-1, 1, 0, 0], \
     #    [1, 1, 0, 0], [0, 0, 0, 0]]
+    board = [[0, 1, 1, 1, 0, 0], [1, 2, -1, 1, 0, 0], \
+        [-1, 2, 1, 2, 1, 1], [1, 1, 0, 1, -1, 1]]
+    #board = [[0, 0, 0, 0], [1, 2, 2, 1], [1, -1, -1, 1], [1, 2, 2, 1]]
     
     bm = BoardManager(board)
     assert sweep_mines(bm) == board
