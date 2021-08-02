@@ -109,16 +109,16 @@ loop: int) -> Tuple[List[str], List[int]]:
         if last_char == "[": # Loop started, replace [ with ] in choices
             del weights[4]
             del chars[4]
-        if last_char == "]": # Loop ended, remove ] from choices
+        elif last_char == "]": # Loop ended, remove ] from choices
             del weights[5]
             del chars[5]
-        if last_char == "<":
+        elif last_char == "<":
             del weights[2]
             del chars[2]
-        if last_char == ">":
+        elif last_char == ">":
             del weights[3]
             del chars[3]
-    elif last_char == "+":
+    if last_char == "+":
         del weights[1]
         del chars[1]
     elif last_char == "-":
@@ -178,16 +178,17 @@ def normalize_scores(scores: List[int]) -> List[float]:
     Add the scores up and normalize them between 1 and 0
     """
     total: int = 0
-    norm: List[float] = [0.0]*len(scores)
+    score_len: int = len(scores)
+    norm: List[float] = [0.0]*score_len
 
     # Add up all the scores
-    for i in range(len(scores)):
+    for i in range(score_len):
         total = total + scores[i]
     # Subtract so that high scores are better
-    for i in range(len(scores)):
+    for i in range(score_len):
         scores[i] = total - scores[i]
     # Divide all by the total to get probability
-    for i in range(len(scores)):
+    for i in range(score_len):
         norm[i] = scores[i]/total
     
     return norm 
@@ -223,7 +224,7 @@ def cross_no_loop(p1: str, p2: str) -> Tuple[str, str]:
     #print("Parent 1: ", p1)
     #print("Parent 2: ", p2)
 
-    #idx_list = [i for i, letter in enumerate(p1) if letter == ">"]
+    idx_list = [i for i, letter in enumerate(p1) if letter == ">"]
     if len(idx_list) < 1:
         idx = random.randint(0, len(p1))
     else:
@@ -231,7 +232,9 @@ def cross_no_loop(p1: str, p2: str) -> Tuple[str, str]:
     #print("P1 split idx: ", idx)
     c1 = p1[:idx] 
     c2 = p1[idx:]
-    #idx_list = [i for i, letter in enumerate(p2) if letter == ">"]
+    #print("C1 after P1: ", c1)
+    #print("C2 after P1: ", c2)
+    idx_list = [i for i, letter in enumerate(p2) if letter == ">"]
     if len(idx_list) < 1:
         idx = random.randint(0, len(p2))
     else:
@@ -248,21 +251,23 @@ def crossover(fe: FitnessEvaluator, parents: List[str], scores: List[float], \
 elite_pcnt: float, loop: int, max_len: int) -> List[str]:
     """
     Keep the top "elite" percent and transfer them directly to the next
-    generation, then take the remainder and use them for crossover.
+    generation, then take the whole list and use them for crossover.
     """
+    par_len: int = len(parents)
+    keep: int = round(par_len*0.6)
     children = parents
     p1: str = ""
     p2: str = ""
     c1: str = ""
     c2: str = ""
     #print("Parents: ", parents)
-    num_elite = round(len(parents)*elite_pcnt)
+    num_elite = round(par_len*elite_pcnt)
     # If remainder is odd, add one to elite so that crossover has even
-    if (len(parents) - num_elite) % 2:
+    if (par_len - num_elite) % 2:
         num_elite = num_elite + 1
     # Use the parents to create new children using crossover
-    for i in range(int((len(parents)-num_elite)/2)):
-        p1, p2 = random.choices(parents, k=2, weights=scores)
+    for i in range(int((par_len-num_elite)/2)):
+        p1, p2 = random.choices(parents[:par_len], k=2, weights=scores[:par_len])
         # Cross the pairs
         if loop:
             print("Contains a loop.")
@@ -299,12 +304,12 @@ def mutate_weird_sequence(program: str, loop: int) -> str:
     if idx != -1:
         program = program[:idx+1] + program[idx] + \
             program[idx+2:]
-    idx = program.find("+-")
-    if idx != -1:
-        program = program[:idx]
-    idx = program.find("-+")
-    if idx != -1:
-        program = program[:idx]
+    #idx = program.find("+-")
+    #if idx != -1:
+    #    program = program[:idx] + program[idx+1:]
+    #idx = program.find("-+")
+    #if idx != -1:
+    #    program = program[:idx] + program[idx+1:]
     #if (idx := program.find("<<")) != -1:
     #    program = program[:idx] + program[idx-1] + \
     #        program[idx+1:]
@@ -320,7 +325,7 @@ def mutate_weird_sequence(program: str, loop: int) -> str:
     return program
 
         
-def mutate_add(program: str, loop: int) -> str:
+def mutate_add(program: str, p_len: int, loop: int) -> str:
     """
     Mutate
     """
@@ -328,17 +333,17 @@ def mutate_add(program: str, loop: int) -> str:
     all_weights: List[int] = [0]
     i: int = 0
     idx: int = 0
-    num_muts: int = round(len(program)*0.1)
+    num_muts: int = round(p_len*0.15)
     
     if loop:
         all_chars = ["+", "-", ">", "<", "[", "]"]
         all_weights = [8, 8, 1, 1, 4, 4]
     else:           # No loop involved
         all_chars = ["+", "-", ">"]
-        all_weights = [1, 1, 1]
+        all_weights = [1, 1, 2]
     
     while i < num_muts:
-        idx = random.randint(0, len(program))
+        idx = random.randint(0, p_len)
         add_char = random.choices(all_chars, weights=all_weights)[0]
         program = program[:idx] + add_char + program[idx:]
         i += 1
@@ -347,21 +352,21 @@ def mutate_add(program: str, loop: int) -> str:
 
 
 
-def mutate_remove(program: str, loop: int) -> str:
+def mutate_remove(program: str, p_len: int, loop: int) -> str:
     """
     Mutate 
     """
-    num_muts: int = round(len(program)*0.1)
+    num_muts: int = round(p_len*0.3)
     i: int = 0
     idx: int = 0
     while i < num_muts:
-        idx = random.randint(0, len(program))
+        idx = random.randint(0, p_len)
         program = program[:idx] + program[idx+1:]
         i += 1
     return program
 
 
-def mutate_replace(program: str, loop: int) -> str:
+def mutate_replace(program: str, p_len: int, loop: int) -> str:
     """
     Mutate 
     """
@@ -369,19 +374,25 @@ def mutate_replace(program: str, loop: int) -> str:
     all_weights: List[int] = [0]
     i: int = 0
     idx: int = 0
-    num_muts: int = round(len(program)*0.1)
+    num_muts: int = round(p_len*0.1)
     
     if loop:
         all_chars = ["+", "-", ">", "<", "[", "]"]
         all_weights = [8, 8, 1, 1, 4, 4]
     else:           # No loop involved
         all_chars = ["+", "-", ">"]
-        all_weights = [3, 3, 1]
+        all_weights = [1, 1, 2]
     
     while i < num_muts:
-        idx = random.randint(0, len(program))
-        add_char = random.choices(all_chars, weights=all_weights)[0]
-        program = program[:idx] + add_char + program[idx+1:]
+        idx = random.randint(0, p_len-2)
+        #print("Idx: ", idx)
+        #print("Prog Length: ", p_len)
+        if program[idx] == "+" or program[idx] == "-":
+            program = program[:idx] + ">" + program[idx+1:]
+        else:
+            program = program[:idx] + program[idx+1] + program[idx+1:]
+        #add_char = random.choices(all_chars, weights=all_weights)[0]
+        #program = program[:idx] + add_char + program[idx+1:]
         i += 1
 
     return program
@@ -393,35 +404,38 @@ def mutate(children: List[str], init_pop: int, cur_pop: int, loop: int) \
     """
     Mutate -> Increase the mutation rate as the population gets smaller
     """
-    sus_seqs: List[str] = ["<>", "><", "+-+", "-+-", "+-", "-+", "[]"]
-    muts: List[str] = ["+", "-", "r"]
-    weights: List[int] = []
+    sus_seqs: List[str] = ["<>", "><", "+-+", "-+-"] #, "+-", "-+", "[]"]
+    weights: List[int] = []     # Remove, add, replace
     mutate: str = ""
     idx: int = 0
-    num_mutate = round((init_pop - cur_pop)/init_pop*cur_pop)
+    c_len: int = len(children)
+    prog_len: int = 0
+    #num_mutate = round((init_pop - cur_pop)/init_pop*cur_pop)
+    num_mutate = round(cur_pop*0.2)
 
-    if loop:
+    if loop:    # Weights for remove, add, replace
         weights = [3, 6, 2]
     else: 
-        weights = [6, 1, 4]
-    #print("Current Pop: ", cur_pop)
-    #print("Num Mutations: ", num_mutate)
+        weights = [4, 1, 2]
+    print("Current Pop: ", cur_pop)
+    print("Num Mutations: ", num_mutate)
     for _ in range(num_mutate):
-        idx = random.choice(range(len(children)))
+        idx = random.choice(range(c_len))
         mutate = children[idx]
         #print("String to mutate: ", mutate)
         if any(word in mutate for word in sus_seqs):
             #print("Found Sus Sequence.")
             mutate = mutate_weird_sequence(mutate, loop)
             #print("Mutated Sus Sequence: ", mutate)
-        next_mut = random.choices(muts, weights=weights)[0]
+        next_mut = random.choices(range(3), weights=weights)[0]
         #print("Next mutation: ", next_mut)
-        if next_mut == "-":
-            mutate = mutate_remove(mutate, loop)
-        elif next_mut == "+":
-            mutate = mutate_add(mutate, loop)
-        elif next_mut == "r":
-            mutate = mutate_replace(mutate, loop)
+        prog_len = len(mutate)
+        if next_mut == 0:       # Remove
+            mutate = mutate_remove(mutate, prog_len, loop)
+        elif next_mut == 1:     # Add
+            mutate = mutate_add(mutate, prog_len, loop)
+        elif next_mut == 2:     # Replace
+            mutate = mutate_replace(mutate, prog_len, loop)
         children[idx] = mutate
 
     return children
@@ -462,7 +476,7 @@ init_pop: int, max_len: int, loop: int) -> Tuple[List[str], List[int], int]:
         count += 1      # Allow it to continue a few more times
     else:
         count = 0
-    if len(parents) < round(init_pop*0.01) or count > 10: 
+    if len(parents) < round(init_pop*0.05) or count > 10: 
         parents = init_parents.copy()   # Reset the parents to init pop size
         scores = init_scores.copy()     # Reset scores to init pop size
         count = 0                       # Reset means not converging anymore
@@ -480,7 +494,7 @@ def create_program(fe: FitnessEvaluator, max_len: int) -> str:
 
     Use fe.evaluate(program) to get a program's fitness score (zero is best).
     """
-    init_pop: int = 1500
+    init_pop: int = 2000
     parents: List[str] = [""]
     scores: List[int] = [0]
     #avg_score: float = 100
@@ -494,12 +508,12 @@ def create_program(fe: FitnessEvaluator, max_len: int) -> str:
         loop = True
         return "+"
     else:
-        max_len = 40
+        max_len = 40 
         
     # Get the parents for the starting population    
     
     while True:
-        if len(parents) < round(init_pop*0.01) or (max(scores)-min(scores)) < 5:
+        if len(parents) < round(init_pop*0.05) or (max(scores)-min(scores)) < 3:
             parents, scores, count = check_startover(parents, scores, count,\
                 init_pop, max_len, loop)
         
@@ -508,6 +522,7 @@ def create_program(fe: FitnessEvaluator, max_len: int) -> str:
         if idx != -1:
             return parents[idx]
         #print(scores)
+        print("Parents: ", parents)
 
         # Add the scores up and normalize them
         norm_scores = normalize_scores(scores)
@@ -515,7 +530,7 @@ def create_program(fe: FitnessEvaluator, max_len: int) -> str:
         # Sort the parents based on their scores
         # Use a threshold to weed some out
         #print("Parent Length before slice: ", len(parents))
-        parents, norm_scores = sort_and_slice(parents, norm_scores, 0.98)
+        parents, norm_scores = sort_and_slice(parents, norm_scores, 0.99)
         #print("Parent Length after slice: ", len(parents))
 
         # Pick pairs out of the rest to use for crossover
@@ -532,7 +547,7 @@ def create_program(fe: FitnessEvaluator, max_len: int) -> str:
     return parents[0]
 
 def main() -> None:  # optional driver
-    array = (-1, 2, -3, 4, -4, 3, 2) #, -4, 3, 2, -1)
+    array = (-1, 2, -3, 4, 1, -3, 2, -1) #, -4, 3, 2) #, -4, 3, 2, -1)
     max_len = 0  # no BF loop required
 
     # only attempt when non-loop programs work
