@@ -6,7 +6,8 @@
 
 import math
 import random
-from typing import Callable, Generator, Optional, Tuple
+from boardhelper import *
+from typing import Callable, Generator, Optional, Tuple, List
 
 
 class GameState:
@@ -196,29 +197,6 @@ class GameState:
                 display += " " * width
             display += "\n"
         return display
-
-
-
-
-def find_best_move(state: GameState) -> None:
-    """
-    Search the game tree for the optimal move for the current player, storing
-    the index of the move in the given GameState object's selected attribute.
-    The move must be an integer indicating an index in the 3D board - ranging
-    from 0 to 63 - with 0 as the index of the top-left space of the top board
-    and 63 as the index of the bottom-right space of the bottom board.
-
-    This function must perform a Monte Carlo Tree Search to select a move,
-    using additional functions as necessary. During the search, whenever a
-    better move is found, the selected attribute should be immediately updated
-    for retrieval by the instructor's game driver. Each call to this function
-    will be given a set number of seconds to run; when the time limit is
-    reached, the index stored in selected will be used for the player's turn.
-    """
-    while True:
-        pass
-
-
 
 
 def main() -> None:
