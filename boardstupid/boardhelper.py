@@ -6,30 +6,10 @@
 
 import math
 import random
-import boardstupid
+from boardstupid import *
 from typing import Callable, Generator, Optional, Tuple, List
 
 
-class State:
-    def __init__(self, idx: int, ucb: float, state):
-        self.idx = idx
-        self.ucb = ucb
-        self.move_ucbs = []
-        self.moves = []
-        self.wins = 0
-        self.attempts = 0
-        self.board = state
-
-    def add_move(self, move, ucb):
-        self.moves.append(move)
-        self.move_ucbs.append(ucb)
-
-    def winner(self):
-        self.wins += 1
-        self.attempts += 1
-
-    def loser(self):
-        self.attempts += 1
 
 def expand(child):
     """
@@ -37,14 +17,14 @@ def expand(child):
     """
     C: float = 2 ** 0.5 # Start with sqrt(2)
 
-    print("======================================Expanding===========================================")
+    #print("======================================Expanding===========================================")
     state = child.board
-    print("Child Moves: ", state.moves)
+    #print("Child Moves: ", state.moves)
     for _, m in enumerate(state.moves):
         board = state.traverse(m)
         # TODO: Check if the board is solved
-        print("New Move: ", m)
-        print("board: ", board.display)
+        #print("New Move: ", m)
+        #print("board: ", board.display)
         new_move = State(m, C, board)   # Add index of the move and C as the UCB
         child.add_move(new_move, C)      # Add the object to the list of moves
     return child
@@ -54,27 +34,30 @@ def simulate(state):
     """
     Get the moves that the child can make and select one at random
     """
-    print("=======================================Simulating=========================================")
+    #print("=======================================Simulating=========================================")
     moves = list(state.moves)
-    print("    moves available: ", moves)
+    #print("    moves available: ", moves)
     for i in range(len(state.moves)):
         move = random.choice(moves)
-        print("        move making: ", move)
+        #print("        move making: ", move)
         move_idx = moves.index(move)
-        print("        index of move: ", move_idx)
+        #print("        index of move: ", move_idx)
         moves.pop(move_idx)
-        print("        new moves available: ", moves)
+        #print("        new moves available: ", moves)
         state = state.traverse(move)
-        print("         New Board: ", state.display)
-    print("    Winner: ", state.util)
+    #print("    Winner: ", state.util)
+    #print("         New Board: ", state.display)
     return state.util
    
 
 
-def MCTS(parent):
+def MCTS(parent, player: int) -> int:
     """
     Perform Monte Carlo Tree Search
     """
+    print("\nPrior Move UCBs: ")
+    for m in range(len(parent.move_ucbs)):
+        print("    ", parent.move_ucbs[m])
     # Find the maximum UCB value to explore
     idx = parent.move_ucbs.index(max(parent.move_ucbs))
         # TODO: May want to make this a random selection instead of first
@@ -85,14 +68,33 @@ def MCTS(parent):
     if child.attempts == 0 or len(child.moves) == 0: # Expand if no moves
         child = expand(child)
         # Pick child from expanded set
-        child_idx = random.randint(0, len(child.moves)-1)
-        simulate_child = child.moves[child_idx]
+        sim_idx = random.randint(0, len(child.moves)-1)
+        simulate_child = child.moves[sim_idx]
         # Perform Simulation
         outcome = simulate(simulate_child.board)
-
     else:                       # Recurse if there are moves
-        child = MCTS(child) 
-    # 
+        print("Recursing.................................")
+        outcome = MCTS(child, player) 
+    # Update the wins/attempts
+    print("Outcome: ", outcome)
+    print("Player: ", player)
+    if outcome == player:
+        print("********** Winner **********")
+        print("Index in list for ucb: ", idx)
+        parent.attempts += 1
+        child_ucb = child.winner(parent.attempts)
+    else:
+        print("********** Loser **********")
+        print("Index in list for ucb: ", idx)
+        parent.attempts += 1
+        child_ucb = child.loser(parent.attempts)
+    parent.move_ucbs[idx] = child_ucb
+    #print("New Move UCBs: ")
+    #for m in range(len(parent.move_ucbs)):
+    #    print("    ", parent.move_ucbs[m])
+    
+
+    return outcome
 
 
 
@@ -116,20 +118,22 @@ def find_best_move(state) -> None:
 
     # First create the root node for the game
     root = State(None, None, state)
+    root = expand(root)
+    """
     print("Moves: ", state.moves)
     for _, m in enumerate(state.moves):
         board = state.traverse(m)
-        print("New Move: ", m)
-        print("board: ", board.display)
+        #print("New Move: ", m)
+        #print("board: ", board.display)
         new_move = State(m, C, board)   # Add index of the move and C as the UCB
         root.add_move(new_move, C)      # Add the object to the list of moves
-
+    """
     while True:
-        MCTS(root)   
+        MCTS(root, state.player)   
+        print("\n\n\nRoot Attempts: ", root.attempts)
+        print("Back in main\n\n\n")
         
         # Pick one of the highest ranked by UCB's
-        break
-        pass
 
 
 

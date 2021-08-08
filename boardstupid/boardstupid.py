@@ -198,6 +198,42 @@ class GameState:
             display += "\n"
         return display
 
+class State:
+    def __init__(self, idx: int, ucb: float, state):
+        self.idx = idx
+        self.ucb = ucb
+        self.move_ucbs = []
+        self.moves = []
+        self.wins = 0
+        self.attempts = 0
+        self.board = state
+
+    def add_move(self, move, ucb):
+        self.moves.append(move)
+        self.move_ucbs.append(ucb)
+
+    def winner(self, total_attempts, C = 2 ** 0.5) -> float:
+        # Total attempts here is the attempts of the parent
+        self.wins += 1
+        self.attempts += 1
+        self.update_ucb(total_attempts, C)
+        return self.ucb
+
+    def loser(self, total_attempts, C = 2 ** 0.5) -> float:
+        self.attempts += 1
+        self.update_ucb(total_attempts, C)
+        return self.ucb
+
+    def update_ucb(self, total_attempts: int, C: float):
+        print("    Old UCB: ", self.ucb)
+        print("    Parent Attempts: ", total_attempts)
+        print("    Self Attempts: ", self.attempts)
+        print("    Wins: ", self.wins)
+        print("    C: ", C)
+        fraction = (math.log(total_attempts)/self.attempts) ** 0.5
+        self.ucb = self.wins/self.attempts + C * fraction
+        print("    New UCB: ", self.ucb)
+        
 
 def main() -> None:
     board = ((   0,    0,    0,    0,
