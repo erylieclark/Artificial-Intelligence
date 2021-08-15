@@ -97,15 +97,21 @@ class Q_Func:
         action_dict: Dict = {}
         vel_dict: Dict = {}
         table: Dict = {}
+        #action_weight = max(actions)
 
-        for i in range(len(actions)):
-            action_dict[actions[i]] = 0.0
+        action_dict[actions[0]] = 1.5
+        for i in range(1,len(actions)):
+            action_dict[actions[i]] = 0.1
 
         for i in range(len(vel_bins)):
-            vel_dict[tuple(vel_bins[i])] = action_dict
+            print("Vel Bins: ", vel_bins[i])
+            vel_dict[tuple(vel_bins[i])] = action_dict.copy()
 
         for i in range(len(alt_bins)):
-            table[tuple(alt_bins[i])] = vel_dict
+            table[tuple(alt_bins[i])] = vel_dict.copy()
+            for j in range(len(vel_bins)):
+                table[tuple(alt_bins[i])][tuple(vel_bins[j])] = action_dict.copy()
+            
         return table
     
 
@@ -117,7 +123,7 @@ class Q_Func:
         # Could specify the number of bins and percent bins more to the
         #   initial state if this is too generic/hard-coded
         num_bins: int = 5           # Number of bins to represent the altitude
-        pcnt_bins: List[float] = [1, 0.5, 0.25, 0.15, 0.05, 0]
+        pcnt_bins: List[float] = [1.3, 0.5, 0.25, 0.15, 0.05, 0]
         alt_bins: List[List[float]] = [[0,0]]*num_bins
         highest_alt: int = num_bins*(round(int(alt)/num_bins))
         print("Highest Altitude", highest_alt)
@@ -133,32 +139,81 @@ class Q_Func:
         """
         state = arg[0]
         action = arg[1]
-        for key in self.table:
-            if state.altitude <= key[0] and state.altitude >= key[1]:
-                vel_dict = self.table[key]
-        for key in vel_dict:
-            if state.velocity <= key[0] and state.velocity >= key[1]:
-                act_dict = vel_dict[key]
+        act_dict = self.get_action_set(state)
         if not action in act_dict:
             return 0.0
-        #print("Act_dict[action]: ", act_dict[action])
         return act_dict[action]
     
-
-    def calc_utility(self, state: ModuleState, action: int, lr: float, \
-        df: float, R: float) -> float:
+    def get_action_set(self, state: ModuleState) -> List[float]:
         """
         Return the utility of a certain action
         """
+        act_dict: Dict = {}
         for key in self.table:
             if state.altitude <= key[0] and state.altitude >= key[1]:
                 vel_dict = self.table[key]
-        for key in vel_dict:
-            if state.velocity <= key[0] and state.velocity >= key[1]:
-                act_dict = vel_dict[key]
-        temp1 = (1 - lr)*act_dict[action]
-        #temp2 = lr*(R + df*max(
-        
+                for key in vel_dict:
+                    if state.velocity <= key[0] and state.velocity >= key[1]:
+                        act_dict = vel_dict[key]
+                        break
+                break
+        return act_dict
+    
+
+    def calc_utility(self, state: ModuleState, action: int, lr: float, \
+        df: float, r: float) -> float:
+        """
+        Return the utility of a certain action
+        """
+        for alt in self.table:
+            if state.altitude <= alt[0] and state.altitude >= alt[1]:
+                vel_dict = self.table[alt]
+                for vel in vel_dict:
+                    if state.velocity <= vel[0] and state.velocity >= vel[1]:
+                        act_dict = vel_dict[vel]
+                        break
+                break
+        temp1 = (1 - lr)*(act_dict.get(action))
+        action_set = self.get_action_set(state.use_fuel(action))
+        temp2 = lr*(r + df*max(list(action_set.values())))
+        total = temp1 + temp2
+        #print("Utility: ", total)
+        self.table[alt][vel][action] = total
+    
+
+    def print_table(self) -> None:
+        """
+        print
+        """
+        for alt in self.table:
+            print("Altitude Range: ", alt)
+            vel_dict = self.table[alt]
+            for vel in vel_dict:
+                print("    Velocity Range: ", vel)
+                act_dict = vel_dict[vel]
+                print("        Action Utilities: ", list(act_dict.values()))
+
+
+def reward_function(state: ModuleState) -> float:
+    """
+    Reward Function
+    """
+    pos: float = 1.0
+    neg: float = -1.0
+    non: float = -0.02
+    term = False
+    if not state.altitude:      # Terminal State
+        if state.velocity > -1:
+            r = pos
+        else:
+            r = neg
+        term = True
+    else:
+        if state.velocity > 0:
+            r = -0.1
+        else:
+            r = non
+    return r, term
 
 def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
     """
@@ -169,24 +224,39 @@ def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
     values offer more control (sensitivity to differences in rate changes), but
     require larger Q-tables and thus more training time.
     """
-    print("----------------------------------------------")
-    print("Actions: ", state.actions)
-    print("New State:\n\r", state.use_fuel(1))
-    print("----------------------------------------------")
-    iterations: int = 100
-    lr: float = 0.5                 # Learning Rate
+    iterations: int = 5000
+    lr: float = 0.8                 # Learning Rate
     df: float = 0.95                # Discounting Factor
+    weights = [3, 0.4, 0.3, 0.2, 0.1]
+    
     starting_state = state          # Copy to return to on each iteration
     table = Q_Func(state)
     for _ in range(iterations):
         state = starting_state
-        break
+        while True:
+            # Choose the action to take
+            #act_set = table.get_action_set(state)
+            #print("Weights: ", list(act_set.values()))
+            #action = random.choices(state.actions, weights=list(act_set.values()))[0]
+            action = random.choices(state.actions, weights=weights)[0]
+            #print("Action: ", action)
+            # Get the reward, terminate if term state???
+            r, term = reward_function(state)
+            # Calculate the utility
+            table.calc_utility(state, action, lr, df, r)
+            if term:
+                break
+            # Take the action
+            state = state.use_fuel(action)
+        #print("-----------------------------------------------------------------")
+        #table.print_table()
+        #print("-----------------------------------------------------------------")
     return lambda s, a: table.get((s, a))
         
 
 
 def main() -> None:
-    fuel: int = 100
+    fuel: int = 200
     altitude: float = 50.0
 
     gforces = {"Pluto": 0.063, "Moon": 0.1657, "Mars": 0.378, "Venus": 0.905,
@@ -197,6 +267,7 @@ def main() -> None:
     q = learn_q(state)
     policy = lambda s: max(state.actions, key=lambda a: q(s, a))
 
+    print("----------------------------------- Main --------------------------------")
     print(state)
     while state.altitude > 0:
         state = state.use_fuel(policy(state))
