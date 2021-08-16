@@ -81,17 +81,18 @@ class ModuleState:  # do not modify class
                            actions=self.actions)
 
 
-class Q_Func:
+class QFunc:
 
     def __init__(self, state: ModuleState) -> None:
         self.alt_bins = self._create_alt_bins(state.altitude)
         #self.vel_bins: List[List[int]] = [[100, 0], [0, -1], [-1, -100]]
         self.vel_bins: List[List[int]] = self._create_vel_bins(state.altitude)
-        self.table = self._init_table(self.alt_bins, self.vel_bins, state.actions)
+        self.table = self._init_table(self.alt_bins, self.vel_bins, \
+            state.actions)
 
 
-    def _init_table(self, alt_bins: List[List[float]], vel_bins: List[List[int]],\
-        actions: List[int]) -> Dict:
+    def _init_table(self, alt_bins: List[List[float]], \
+        vel_bins: List[List[int]], actions: List[int]) -> Dict:
         """
         Initialize the lookup table that will carry the utility values
         """
@@ -100,7 +101,7 @@ class Q_Func:
         table: Dict = {}
 
         action_dict[actions[0]] = 1.5
-        for i in range(1,len(actions)):
+        for i in range(1, len(actions)):
             action_dict[actions[i]] = 0.1
 
         for i in range(len(vel_bins)):
@@ -109,7 +110,8 @@ class Q_Func:
         for i in range(len(alt_bins)):
             table[tuple(alt_bins[i])] = vel_dict.copy()
             for j in range(len(vel_bins)):
-                table[tuple(alt_bins[i])][tuple(vel_bins[j])] = action_dict.copy()
+                table[tuple(alt_bins[i])][tuple(vel_bins[j])] = \
+                    action_dict.copy()
             
         return table
     
@@ -134,16 +136,11 @@ class Q_Func:
         pcnt_bins: List[float] = [round(1.5*r**i, 2) for i in range(num_bins)]
         pcnt_bins.append(0)                 # Add 0 to finish off the list
         # Initialize the bins
-        alt_bins: List[List[float]] = [[0,0]]*num_bins
+        alt_bins: List[List[float]] = [[0, 0]]*num_bins
         # Determine start and stop points for each bin
         for i in range(num_bins):
             alt_bins[i] = [round(alt*pcnt_bins[i], 2), \
                 round(alt*pcnt_bins[i+1], 2)]
-        print("Num_bins: ", num_bins)
-        print("Pcnt Bins", pcnt_bins)
-        print("Highest Altitude", alt)
-        print("Bins", alt_bins)
-        #"""
         return alt_bins
     
 
@@ -157,13 +154,13 @@ class Q_Func:
         if not action in act_dict:
             return 0.0
         return act_dict[action]
+
     
-    def get_action_set(self, state: ModuleState) -> List[float]:
+    def get_action_set(self, state: ModuleState) -> Dict:
         """
         Return the utility of a certain action
         """
         act_dict: Dict = {}
-        #print(state)
         for key in self.table:
             if state.altitude <= key[0] and state.altitude >= key[1]:
                 vel_dict = self.table[key]
@@ -172,6 +169,7 @@ class Q_Func:
                         act_dict = vel_dict[key]
                         break
                 break
+        print("act_dict: ", act_dict)
         return act_dict
     
 
@@ -181,6 +179,8 @@ class Q_Func:
         Return the utility of a certain action
         """
         act_dict: Dict = {}
+        alt: Tuple[int, ...] = (0, 0)
+        vel: Tuple[int, ...] = (0, 0)
         for alt in self.table:
             if state.altitude <= alt[0] and state.altitude >= alt[1]:
                 vel_dict = self.table[alt]
@@ -197,7 +197,6 @@ class Q_Func:
             temp2 = lr*(r + df*max(list(action_set.values())))
             total = temp1 + temp2
             self.table[alt][vel][action] = round(total, 4)
-            #print("Utility: ", total)
     
 
     def print_table(self) -> None:
@@ -213,7 +212,7 @@ class Q_Func:
                 print("        Action Utilities: ", list(act_dict.values()))
 
 
-def reward_function(state: ModuleState, max_alt: float) -> float:
+def reward_function(state: ModuleState, max_alt: float) -> Tuple[float, int]:
     """
     Reward Function
     """
@@ -236,8 +235,9 @@ def reward_function(state: ModuleState, max_alt: float) -> float:
             r = non
     return r, term
 
-def run_simulation(state: ModuleState, table: Q_Func, starting_alt: float, \
-lr: float, df: float) -> ModuleState:
+
+def run_simulation(state: ModuleState, table: QFunc, starting_alt: float, \
+lr: float, df: float) -> None:
     """
     Run Simulation
     """
@@ -245,13 +245,11 @@ lr: float, df: float) -> ModuleState:
     while True:
         # Choose the action to take
         act_set = table.get_action_set(state)
-        #print("Weights: ", list(act_set.values()))
         if len(list(act_set.values())) < 1:
             action = random.choices(state.actions, weights=weights)[0]
         else:
-            action = random.choices(state.actions, weights=list(act_set.values()))[0]
-        #action = random.choices(state.actions)[0]
-        #print("Action: ", action)
+            action = random.choices(state.actions, \
+                weights=list(act_set.values()))[0]
         # Get the reward, terminate if term state???
         r, term = reward_function(state, starting_alt)
         # Calculate the utility
@@ -298,25 +296,25 @@ def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
     values offer more control (sensitivity to differences in rate changes), but
     require larger Q-tables and thus more training time.
     """
-    iterations: int = 3000
-    start_iters: int = 300
-    lr: float = 0.7                 # Learning Rate
+    iterations: int = 10
+    start_iters: int = 1
+    lr: float = 0.5                 # Learning Rate
     df: float = 0.95                # Discounting Factor
     
     starting_state = state          # Copy to return to on each iteration
     start_alt = starting_state.altitude
-    table = Q_Func(state)
+    table = QFunc(state)
 
     # Start by filling out the state space near the planet    
     # Keep learning rate high for this part
-    for alt in range(int(start_alt/2),int(start_alt)):
+    for alt in range(int(start_alt/2), int(start_alt)):
         df = update_df(alt, start_alt)
         for i in range(start_iters):
             state = starting_state
             state.altitude = alt
             run_simulation(state, table, start_alt, lr, df)
 
-    print("Starting main iterations")
+    #print("Starting main iterations")
     for i in range(iterations):
         state = starting_state
         lr = update_lr(i, iterations)
@@ -339,7 +337,6 @@ def main() -> None:
     q = learn_q(state)
     policy = lambda s: max(state.actions, key=lambda a: q(s, a))
 
-    print("----------------------------------- Main --------------------------------")
     print(state)
     while state.altitude > 0:
         state = state.use_fuel(policy(state))
