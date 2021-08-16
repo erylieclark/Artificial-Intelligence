@@ -245,7 +245,7 @@ lr: float, df: float, epsilon: float) -> None:
     while True:
         # Choose the action to take
         act_set = table.get_action_set(state)
-        act_choice = random.choices((0, 1), weights=[epsilon, 1-epsilon]) 
+        act_choice = random.choices((0, 1), weights=[epsilon, 1-epsilon])[0] 
         if act_choice == 1 or len(list(act_set.values())) < 1:
             action = random.choices(state.actions, weights=weights)[0]
         else:
@@ -309,13 +309,13 @@ def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
     require larger Q-tables and thus more training time.
     """
     iterations: int = 5000
-    start_iters: int = 100
+    #start_iters: int = 100
     lr: float = 0.8                 # Learning Rate
     df: float = 0.95                # Discounting Factor
     epsilon: float = 0.2
     
     starting_state = state          # Copy to return to on each iteration
-    start_alt = starting_state.altitude
+    #start_alt = starting_state.altitude
     table = QFunc(state)
 
     # Start by filling out the state space near the planet    

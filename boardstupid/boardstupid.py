@@ -211,25 +211,28 @@ class State:
         self.moves.append(move)
         self.move_ucbs.append(ucb)
 
-    def winner(self):
-        self.wins += 1
+    def winner(self, win_weight: float = 1):
+        self.wins += win_weight
         self.attempts += 1
 
-    def loser(self):
+    def loser(self, lose_weight: float = 0.5):
         self.attempts += 1
+        self.wins -= lose_weight
+    
+    def tie(self, tie_weight: float = 0.5):
+        self.attempts += 1
+        self.wins += tie_weight
 
 
 def expand(child: State) -> State:
     """
     Get the moves that the child can make and select one at random
     """
-    c: float = 2 ** 0.5 # Start with sqrt(2)
+    c: float = 2 # Start with sqrt(2)
 
     state = child.board
-    #print("Child Moves: ", state.moves)
     for _, m in enumerate(state.moves):
         board = state.traverse(m)
-        # TODO: Check if the board is solved
         new_move = State(m, c, board)   # Add index of the move and C as the UCB
         child.add_move(new_move, c)      # Add the object to the list of moves
     return child
@@ -245,12 +248,10 @@ def simulate(state: GameState) -> int:
         move_idx = moves.index(move)
         moves.pop(move_idx)
         state = state.traverse(move)
-    #print("    Winner: ", state.util)
-    #print("         New Board: ", state.display)
     return state.util
    
 
-def update_ucbs(parent: State, c: float = 2 ** 0.5) -> None:
+def update_ucbs(parent: State, c: float = 2) -> None:
     for i, child in enumerate(parent.moves): 
         if child.attempts > 0:
             fraction = (math.log(parent.attempts)/child.attempts) ** 0.5
@@ -275,18 +276,44 @@ def run_each_move(root: State, state: GameState) -> State:
     Run each initial move a number of times to get a better idea
     of which ones will work best
     """
+    # Decide how many times to run the initial states
+    #num_inits = len(root.moves)
+    #if num_inits < 2:
+    #    num_inits = 3
+    num_inits = 20
     for m, base_move in enumerate(root.moves):
-        for _ in range(10):
-            base_move = expand(base_move)
-            _, outcome, _ = mcts(base_move, state, False, 0)
-            if outcome == state.player:
-                base_move.winner()
+        base_move = expand(base_move)
+        for _ in range(num_inits):
+            #outcome = simulate(base_move.board)
+            _, outcome, _ = mcts(base_move, state, False, -5)
+            if outcome == 0:
+                base_move.tie(tie_weight=0.5)
+            elif outcome == state.player:
+                base_move.winner(win_weight=1)
             else:
-                base_move.loser()
+                base_move.loser(lose_weight=0)
             root.attempts += 1
         root.moves[m] = base_move
     update_ucbs(root)
+    print("Updated UCBs: ", root.move_ucbs)
     return root 
+
+
+def determine_outcome(node: State, outcome: int, player: int, \
+root: int, win_ratio: float) -> Tuple[State, int, float]:
+    """
+    Determine what to do with the outcome
+    """
+    new_winner: int = None
+    if outcome == 0:
+        node.tie()
+    elif outcome == player:
+        node.winner()
+        if root:
+            new_winner, win_ratio = update_selected(node, win_ratio)
+    else:
+        node.loser()
+    return node, new_winner, win_ratio
     
 
 def mcts(parent: State, state: GameState, root: int, win_ratio: float)\
@@ -295,27 +322,31 @@ def mcts(parent: State, state: GameState, root: int, win_ratio: float)\
     Perform Monte Carlo Tree Search
     """
     new_winner: int = None
-    # Find the maximum UCB value to explore
-    idx = parent.move_ucbs.index(max(parent.move_ucbs))
-    # Select the child with the highest UCB value
-    child = parent.moves[idx]
-    # Check if the child has moves expanded already
-    if child.attempts == 0 or len(child.moves) == 0: # Expand if no moves
-        child = expand(child)
-        print("Child Moves: ", child.moves)
-        # Pick child from expanded set
-        sim_idx = random.randint(0, len(child.moves)-1)
-        simulate_child = child.moves[sim_idx]
-        # Perform Simulation
-        outcome = simulate(simulate_child.board)
-    else:                       # Recurse if there are moves
-        _, outcome, _ = mcts(child, state, False, 0) 
-    if outcome == state.player:
-        child.winner()
-        if root:
-            new_winner, win_ratio = update_selected(child, win_ratio)
+    if len(parent.move_ucbs) > 0: # At terminal state if no moves
+        # Find the maximum UCB value to explore
+        idx = parent.move_ucbs.index(max(parent.move_ucbs))
+        # Select the child with the highest UCB value
+        child = parent.moves[idx]
+        #print("Child Attempts: ", child.attempts)
+        # Check if the child has moves expanded already
+        if child.attempts == 0: #or len(child.moves) == 0: # Expand if no moves
+            child = expand(child)
+            if len(child.moves) > 0:           # Check if frontier reached end
+                # Pick child from expanded set
+                sim_idx = random.randint(0, len(child.moves)-1)
+                simulate_child = child.moves[sim_idx]
+                # Perform Simulation
+                outcome = simulate(simulate_child.board)
+            else:
+                outcome = child.board.util
+        else:                       # Recurse if there are moves
+            _, outcome, _ = mcts(child, state, False, 0) 
+        child, new_winner, win_ratio =\
+            determine_outcome(child, outcome, state.player, root, win_ratio)
     else:
-        child.loser()
+        outcome = parent.board.util
+        parent, new_winner, win_ratio =\
+            determine_outcome(parent, outcome, state.player, root, win_ratio)
     parent.attempts += 1
     update_ucbs(parent)
     return new_winner, outcome, win_ratio
@@ -336,7 +367,7 @@ def find_best_move(state: GameState) -> None:
     will be given a set number of seconds to run; when the time limit is
     reached, the index stored in selected will be used for the player's turn.
     """
-    win_ratio: float = 0
+    win_ratio: float = -5
 
     # First create the root node for the game
     root = State(None, None, state)
@@ -348,8 +379,8 @@ def find_best_move(state: GameState) -> None:
             state.selected = idx
     print("After intial runs, selected: ", state.selected)
     
-    while True:
-    #for _ in range(500):
+    #while True:
+    for _ in range(2000):
         idx, _, win_ratio = mcts(root, state, True, win_ratio)   
         if idx != None:
             state.selected = idx
@@ -362,12 +393,21 @@ def main() -> None:
     #          0, None, 0, None,
     #          0, None, None, 0),) \
     #        + ((None,) * 16,) * 3
+    """
+    board = ((1, None, None, 1, 1, None, 1, None, \
+0, 0, None, None, 0, 0, 1, 1),\
+ (None, None, None, None, None, None, None, None, \
+1, 0, None, None, 0, 1, None, None),\
+ (None, None, None, None, 1, None, 1, None, None, \
+None, None, None, 1, None, 1, None),\
+ (0, None, None, 1, None, None, None, None, None, \
+None, None, None, 1, None, None, 0))
+    """
     board = ((None, None, 0, None,
               None, None, 0, None,
               0, 0, 0, 0,
               None, None, 0, None),) \
             + ((None,) * 16,) * 3
-    """
     board = ((0, 0, 0, 0,
               0, None, None, None,
               0, None, None, None,
@@ -384,6 +424,7 @@ def main() -> None:
               0, 0, None, None,
               0, None, 0, None,
               0, None, None, 0),)
+    """
     board = ((0, 0, 0, 0,
               0, None, None, None,
               0, None, None, None,
@@ -405,7 +446,7 @@ def main() -> None:
     print(state.display)
     find_best_move(state)
     print("Final Answer: ", state.selected)
-    assert state.selected == 10
+    assert state.selected == 48
     #play_game()
 
 
