@@ -173,11 +173,13 @@ def init_layers(num_layers: int, num_levels: int, i_size: int, o_size: int) \
     network.append(Layer((num_levels, i_size), False))
     #print(network[0].__repr__())
 
+    # Middle Layers - each have same levels in and out
     for i in range(1, num_layers - 1):
         network.append(Layer((num_levels, num_levels), True))
 
-    # Last layer
+    # Last layer - has num levels going in, output size coming out
     network.append(Layer((o_size, num_levels), True))
+    return network
 
 
 def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
@@ -189,18 +191,53 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
     Return the resulting trained network.
     """
     num_layers: int = 2
-    num_levels: int = i_size
-    print(i_size)
+    num_levels: int = 4
+    num_batches: int = 2
+    batch_size: int = int(len(samples)/num_batches)
+    print("Batch Size: ", batch_size)
+    # Initialize the network
     network = init_layers(num_layers, num_levels, i_size, o_size)
+    # print("Network: ", network[0].__repr__)
+    # Forward propagate for batch_size samples
+    for i in range(batch_size):
+        #print("Network: ", network[0].__repr__)
+        result = propagate_forward(network, list(samples.keys())[i])
+        break
+     
     
-    
-
-
-def propagate_forward(layers: List[Layer], sample: Tuple[int, ...]) \
--> List[Layer]:
+def transp_input(sample: List[int]) -> List[List[float]]:
     """
     Propagate Forward
     """
+    layer_input: List[List[float]] = []
+    layer_input.append(sample)
+    layer_input = Math.transpose(layer_input)
+    return layer_input
+
+
+def propagate_forward(layers: List[Layer], sample: List[int]) \
+-> Tuple[int, ...]:
+    """
+    Propagate Forward
+    """
+    layer_input: List[List[float]] = []
+    layer_input = transp_input(sample)
+    for i in range(len(layers)):
+        wx = Math.matmul(layers[i].w, layer_input) 
+        # Only ever going to have Nx1
+        wx = Math.transpose(wx)
+        layers[i].z = [a + b for a, b in zip(wx[0], layers[i].b)]
+        """
+        print("wx: ", wx)
+        print("Z: ", layers[i].z)
+        """
+        for feature in range(len(layers[i].z)):
+            layers[i].a[feature] = Math.sigmoid(layers[i].z[feature])
+        layer_input = transp_input(layers[i].a)
+        """
+        print("layer input: ", layer_input)
+        print("A: ", layers[i].a)
+        """
     return
 
 
@@ -209,7 +246,7 @@ def main() -> None:
     f = lambda x, y: x + y  # operation to learn
     n_args = 2              # arity of operation
     #n_bits = 8              # size of each operand
-    n_bits = 4              # size of each operand
+    n_bits = 3              # size of each operand
 
     samples = create_samples(f, n_args, n_bits)
     train_pct = 0.95
@@ -221,6 +258,7 @@ def main() -> None:
     print("Train Size:", len(train_set), "Test Size:", len(test_set))
 
     network = train_network(train_set, n_args * n_bits, n_bits)
+    print("*************************** TESTING *******************************")
     for inputs in test_set:
         output = tuple(round(n, 2) for n in propagate_forward(network, inputs))
         bits = tuple(round(n) for n in output)
