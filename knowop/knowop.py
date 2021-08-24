@@ -193,52 +193,43 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
     num_layers: int = 2
     num_levels: int = 4
     num_batches: int = 2
-    batch_size: int = int(len(samples)/num_batches)
+    batch_size: int = int(len(samples)/num_batches) + 1
     print("Batch Size: ", batch_size)
     # Initialize the network
     network = init_layers(num_layers, num_levels, i_size, o_size)
-    # print("Network: ", network[0].__repr__)
     # Forward propagate for batch_size samples
     for i in range(batch_size):
         #print("Network: ", network[0].__repr__)
-        result = propagate_forward(network, list(samples.keys())[i])
+        # y is the final output of forward propagation
+        y = propagate_forward(network, list(samples.keys())[i])
+        print("Y: ", y)
+        Math.loss(y)
+        # Now backprop it
+         
         break
      
+
+def backprop(layers: List[Layer], y: List[int]) \
+-> Tuple[float]:
+    """
+    Back prop
+    """
+    da = loss
+    #for i in range(len(layers)):
+        
+
     
-def transp_input(sample: List[int]) -> List[List[float]]:
-    """
-    Propagate Forward
-    """
-    layer_input: List[List[float]] = []
-    layer_input.append(sample)
-    layer_input = Math.transpose(layer_input)
-    return layer_input
-
-
 def propagate_forward(layers: List[Layer], sample: List[int]) \
--> Tuple[int, ...]:
+-> Tuple[float]:
     """
     Propagate Forward
     """
-    layer_input: List[List[float]] = []
-    layer_input = transp_input(sample)
+    layer_input = sample
     for i in range(len(layers)):
-        wx = Math.matmul(layers[i].w, layer_input) 
-        # Only ever going to have Nx1
-        wx = Math.transpose(wx)
-        layers[i].z = [a + b for a, b in zip(wx[0], layers[i].b)]
-        """
-        print("wx: ", wx)
-        print("Z: ", layers[i].z)
-        """
-        for feature in range(len(layers[i].z)):
-            layers[i].a[feature] = Math.sigmoid(layers[i].z[feature])
-        layer_input = transp_input(layers[i].a)
-        """
-        print("layer input: ", layer_input)
-        print("A: ", layers[i].a)
-        """
-    return
+        #print("Layer Input: ", layer_input)
+        layer_input = layers[i].activate(layer_input)
+    
+    return layer_input
 
 
 def main() -> None:
