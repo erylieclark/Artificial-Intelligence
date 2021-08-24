@@ -100,7 +100,7 @@ class QFunc:
         vel_dict: Dict = {}
         table: Dict = {}
 
-        action_dict[actions[0]] = 0.5
+        action_dict[actions[0]] = 0.3
         for i in range(1, len(actions)):
             action_dict[actions[i]] = 0.1
 
@@ -120,9 +120,23 @@ class QFunc:
         """
         Define the bins that will be used in this simulation
         """
-        vel_bins = [[100, 0], [0, -0.5], [-0.5, -1], [-1, -2], [-2, -5], \
-            [-5, -100]]
+        vel_bins = [[100, 0], [0, -0.5], [-0.5, -1], [-1, -2], [-2, -4], \
+            [-4, -6], [-6, -15], [-15, -30], [-30, -50], [-50, -100]]
         return vel_bins
+    
+
+    def _get_num_bins(self, alt: float) -> int:
+        """
+        Determine the number of altitude bins to use
+        """
+        num_bins: int = 0
+        if alt < 30:
+            num_bins = 8
+        elif alt < 80:
+            num_bins = 10
+        else:
+            num_bins = 8
+        return num_bins
     
 
     def _create_alt_bins(self, alt: float) -> List[List[float]]:
@@ -130,10 +144,10 @@ class QFunc:
         Define the bins that will be used in this simulation
         """
         # Number of bins depending on the altitude to represent altitude
-        num_bins: int = round((alt + 2.5)/5) 
+        num_bins = self._get_num_bins(alt)
         # The bins will not be evenly spaced, smaller with less altitude
-        r: float = 0.4                      # Rate of exponential decay
-        pcnt_bins: List[float] = [round(1.5*r**i, 5) for i in range(num_bins)]
+        r: float = 0.5                      # Rate of exponential decay
+        pcnt_bins: List[float] = [round(1.1*r**i, 5) for i in range(num_bins)]
         pcnt_bins.append(0)                 # Add 0 to finish off the list
         # Initialize the bins
         alt_bins: List[List[float]] = [[0, 0]]*num_bins
@@ -141,6 +155,7 @@ class QFunc:
         for i in range(num_bins):
             alt_bins[i] = [round(alt*pcnt_bins[i], 5), \
                 round(alt*pcnt_bins[i+1], 5)]
+        print("Bins: ", alt_bins)
         return alt_bins
     
 
@@ -215,12 +230,13 @@ def reward_function(state: ModuleState, max_alt: float) -> Tuple[float, int]:
     """
     Reward Function
     """
-    pos: float = 1.0
-    neg: float = -1.0
-    non: float = -0.04
+    pos: float = 1.2
+    neg: float = -1.2
+    non: float = -0.02
     term = False
     if not state.altitude:      # Terminal State
         if state.velocity > -1:
+            #print("Positive Terminal State")
             r = pos
         else:
             r = neg
@@ -229,7 +245,7 @@ def reward_function(state: ModuleState, max_alt: float) -> Tuple[float, int]:
         r = neg
     else:
         if state.velocity > 0:
-            r = -0.2
+            r = -0.3
         else:
             r = non
     return r, term
@@ -240,7 +256,7 @@ lr: float, df: float, epsilon: float) -> None:
     """
     Run Simulation
     """
-    weights = [0.7, 0.3, 0.2, 0.1, 0.1]
+    weights = [0.3, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1]
     act_choice: int = 0
     while True:
         # Choose the action to take
@@ -266,7 +282,7 @@ def update_df(alt: float, start_alt: float) -> float:
     """
     Update Discounting Factor
     """
-    starting_df: float = 0.1
+    starting_df: float = 0.95
     max_df: float = 0.95
 
     df = starting_df + round(alt/start_alt, 3)
@@ -282,7 +298,7 @@ def update_lr(cur_iter: int, total_iters: int) -> float:
     Update Learning Rate
     """
     start_lr = 0.9
-    lowest_lr = 0.6
+    lowest_lr = 0.1
     lr = start_lr - (start_lr - lowest_lr)*(cur_iter/total_iters)
     return lr
 
@@ -291,7 +307,7 @@ def update_epsilon(cur_iter: int, total_iters: int) -> float:
     """
     Update Learning Rate
     """
-    start = 0.2
+    start = 0.0
     highest = 0.9
     epsilon = start + (cur_iter/total_iters)
     if epsilon > highest:
@@ -308,14 +324,15 @@ def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
     values offer more control (sensitivity to differences in rate changes), but
     require larger Q-tables and thus more training time.
     """
-    iterations: int = 5000
+    iterations: int = 15000
     #start_iters: int = 100
     lr: float = 0.8                 # Learning Rate
     df: float = 0.95                # Discounting Factor
     epsilon: float = 0.2
     
+    state.set_actions(7)
     starting_state = state          # Copy to return to on each iteration
-    #start_alt = starting_state.altitude
+    start_alt = starting_state.altitude
     table = QFunc(state)
 
     # Start by filling out the state space near the planet    
@@ -334,6 +351,7 @@ def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
     for i in range(iterations):
         state = starting_state
         lr = update_lr(i, iterations)
+        df = update_df(state.altitude, start_alt)
         epsilon = update_epsilon(i, iterations)
         run_simulation(state, table, starting_state.altitude, lr, df, epsilon)
 
@@ -343,13 +361,13 @@ def learn_q(state: ModuleState) -> Callable[[ModuleState, int], float]:
 
 def main() -> None:
     fuel: int = 200
-    altitude: float = 75.0
+    altitude: float = 100.0
 
     gforces = {"Pluto": 0.063, "Moon": 0.1657, "Mars": 0.378, "Venus": 0.905,
                "Earth": 1.0, "Jupiter": 2.528}
     transition = lambda g, r: g * (2 * r - 1)  # example transition function
 
-    state = ModuleState(fuel, altitude, gforces["Moon"], transition)
+    state = ModuleState(fuel, altitude, gforces["Jupiter"], transition)
     q = learn_q(state)
     policy = lambda s: max(state.actions, key=lambda a: q(s, a))
 
