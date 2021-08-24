@@ -182,6 +182,21 @@ def init_layers(num_layers: int, num_levels: int, i_size: int, o_size: int) \
     return network
 
 
+def get_cost(actual: Tuple[float], expect: Tuple[float]) \
+-> float:
+    """
+    Get loss of each individual output neruon
+    """
+    print("Output: ", actual)
+    print("Expected: ", expect)
+    loss: float = 0.0
+    cost: float = 0.0
+    for i in range(len(actual)):
+        loss = loss + Math.loss(actual[i], expect[i])
+    cost = loss/i
+    print("Cost: ", cost)
+    return cost
+
 def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
                   i_size: int, o_size: int) -> List[Layer]:
     """
@@ -193,8 +208,10 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
     num_layers: int = 2
     num_levels: int = 4
     num_batches: int = 2
+    max_cost: float = 0.1
     batch_size: int = int(len(samples)/num_batches) + 1
     print("Batch Size: ", batch_size)
+
     # Initialize the network
     network = init_layers(num_layers, num_levels, i_size, o_size)
     # Forward propagate for batch_size samples
@@ -202,20 +219,61 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
         #print("Network: ", network[0].__repr__)
         # y is the final output of forward propagation
         y = propagate_forward(network, list(samples.keys())[i])
-        print("Y: ", y)
-        Math.loss(y)
+        print("Network: ", network)
+        if(get_cost(y, list(samples.values())[i]) < max_cost):
+            print("Cost is sufficiently low. Stop Training.")
+            return network
         # Now backprop it
+        backprop(network, num_layers, y, list(samples.values())[i])
          
         break
      
 
-def backprop(layers: List[Layer], y: List[int]) \
+def get_loss_prime(actual: Tuple[float], expect: Tuple[float]) \
 -> Tuple[float]:
+    """
+    Get loss of each individual output neruon
+    """
+    #print("Output: ", actual)
+    #print("Expected: ", expect)
+    loss: List[float] = []
+    for i in range(len(actual)):
+        loss.append(Math.loss_prime(actual[i], expect[i]))
+    print("Loss Prime: ", loss)
+    return loss 
+
+
+def get_active_func(func: Callable, vals: List[float]) \
+-> Tuple[float]:
+    """
+    Return a vector containing the results from the given function
+    """
+    new_vals: List[float] = []
+    for i in range(len(vals)):
+        new_vals.append(func(vals[i]))
+    print("New Vals: ", new_vals)
+    return new_vals
+
+
+def backprop(network: List[Layer], layers: int, y: List[int], \
+expect: List[float]) -> Tuple[float]:
     """
     Back prop
     """
-    da = loss
-    #for i in range(len(layers)):
+    print("Network: ", layers)
+    da = get_loss_prime(y, expect) 
+    print("z: ", network[layers-1].z)
+    gpz = get_active_func(Math.sigmoid_prime, network[layers-1].z)
+    #gpz = Math.sigmoid_prime(network[layers-1].z)
+    print("da: ", da)
+    print("gpz: ",gpz)
+    for i in range(layers-2, -1, -1):
+        dz = Math.dot(da, gpz)
+        print("dz: ", dz)
+        network[i].dw = Math.matmul(dz, Math.transpose(network[i-1].a))
+        network[i].db = dz
+        da = Math.dot(Math.transpose(network[i].w), dz)
+        gpz = get_active_func(Math.relu_prime, network[i+1].z)
         
 
     
