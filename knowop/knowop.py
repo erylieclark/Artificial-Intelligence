@@ -169,16 +169,19 @@ def init_layers(num_layers: int, num_levels: int, i_size: int, o_size: int) \
     """
     network: List[Layer] = []
     print("Initializing Layers")
-    # First layer based on input size
-    network.append(Layer((num_levels, i_size), False))
-    #print(network[0].__repr__())
+    if num_layers > 1:
+        # First layer based on input size
+        network.append(Layer((num_levels, i_size), False))
 
-    # Middle Layers - each have same levels in and out
-    for i in range(1, num_layers - 1):
-        network.append(Layer((num_levels, num_levels), True))
+        # Middle Layers - each have same levels in and out
+        for i in range(1, num_layers - 1):
+            network.append(Layer((num_levels, num_levels), True))
 
-    # Last layer - has num levels going in, output size coming out
-    network.append(Layer((o_size, num_levels), True))
+        # Last layer - has num levels going in, output size coming out
+        network.append(Layer((o_size, num_levels), True))
+    else:
+        network.append(Layer((o_size, i_size), True))
+        
     return network
 
 
@@ -189,8 +192,6 @@ def get_cost(actual: Tuple[float], expect: Tuple[float]) \
     """
     loss: float = 0.0
     cost: float = 0.0
-    #print("Actual:   ", actual)
-    #print("Expected: ", expect)
     for i in range(len(actual)):
         loss = loss + Math.loss(actual[i], expect[i])
     cost = loss/len(actual)
@@ -211,70 +212,17 @@ def add_weights(list1: List[List[float]], list2: List[List[float]]) \
     return new_list
 
 
-def update_lr(cur_batch: int, num_batches: int) \
+def update_lr(cur_batch: int, args: int) \
 -> float:
     """
     update the learning rate
     """
-    start_lr: float = 0.09
-    end_lr: float = 0.00000001
-    lr: float = 0
-    pcnt: float = 0.99**(cur_batch)
-    #print("Pcnt: ", pcnt)
-    lr = end_lr + pcnt*start_lr
-    #lr = start_lr - (start_lr - end_lr)*(cur_batch/num_batches)
+    start_lr: float = 0.5 
+    rate: float = 0.99 
+    pcnt: float = rate**(cur_batch)
+    lr: float = pcnt*start_lr
     return lr
 
-
-def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
-                  i_size: int, o_size: int) -> List[Layer]:
-    """
-    Given a training set (with labels) and the sizes of the input and output
-    layers, create and train a network by iteratively propagating inputs
-    (forward) and their losses (backward) to update its weights and biases.
-    Return the resulting trained network.
-    """
-    num_layers: int = 5
-    num_levels: int = 8
-    num_batches: int = 100
-    max_cost: float = 0.1
-    batch_size: int = 500
-    lr: float = 0.1
-    print("Batch Size: ", batch_size)
-
-    # Initialize the network
-    network = init_layers(num_layers, num_levels, i_size, o_size)
-    # Forward propagate for batch_size samples
-    for b in range(num_batches):
-        lr = update_lr(b, num_batches)
-        for i in range(batch_size):
-            input_vec = random.choice(list(samples.keys()))
-            #input_vec = list(samples.keys())[b*batch_size + i]
-            expect_out = random.choice(list(samples.values()))
-            #expect_out = list(samples.values())[b*batch_size + i]
-            # y is the final output of forward propagation
-            y = propagate_forward(network, input_vec)
-            if(get_cost(y, expect_out) < max_cost):
-                print("Cost is sufficiently low. Stop Training.")
-                return network
-            # Now backprop it
-            backprop(network, num_layers, y, input_vec, expect_out)
-        # Update the weights and biases
-        print("Cost: ", get_cost(y, expect_out))
-        for layer in range(num_layers):
-            dw = network[layer].dw
-            change_w = [[ -1 * lr * w for w in inner ] for inner in dw]
-            network[layer].w = add_weights(network[layer].w, change_w)
-            temp_db = network[layer].db
-            #print("Db: ", db)
-            #print("b: ", network[layer].b)
-            db = list(itertools.chain(*temp_db))
-            change_b = [ -1 * lr * b for b in db ]
-            network[layer].b = \
-                [sum(x) for x in zip(network[layer].b, change_b)]
-            
-    return network
-     
 
 def get_loss_prime(actual: Tuple[float], expect: Tuple[float]) \
 -> Tuple[float]:
@@ -309,10 +257,13 @@ sample: List[int], expect: List[float]) -> Tuple[float]:
         temp_dz = [a*b for a,b in zip(da, gpz)]
         dz = [[el] for el in temp_dz]
         if i > 0:
-            network[i].dw = Math.matmul(dz, [network[i-1].a])
+            network[i].dw = add_weights(Math.matmul(dz, [network[i-1].a]), \
+                network[i].dw)
         else:
-            network[i].dw = Math.matmul(dz, [sample])
-        network[i].db = dz
+            network[i].dw = add_weights(Math.matmul(dz, [sample]), \
+                network[i].dw)
+        network[i].db = [sum(x) for x in zip(network[i].db, \
+            list(itertools.chain(*dz)))]
         if i >= 0:
             da = Math.matmul(Math.transpose(network[i].w), dz)
             # Flatten the list
@@ -320,7 +271,73 @@ sample: List[int], expect: List[float]) -> Tuple[float]:
             gpz = get_active_func(Math.relu_prime, network[i-1].z)
         else:
             break
-        
+
+
+def update_network(network: List[Layer], lr: float, num_layers: int) \
+-> List[Layer]:
+    """
+    Update weights and biases
+    """
+    for layer in range(num_layers):
+        dw = network[layer].dw
+        change_w = [[ -1 * lr * w for w in inner ] for inner in dw]
+        network[layer].w = add_weights(network[layer].w, change_w)
+        db = network[layer].db
+        change_b = [ -1 * lr * b for b in db ]
+        # Set to a 0 list before the start of next batch
+        network[layer].b = \
+            [sum(x) for x in zip(network[layer].b, change_b)]
+        network[layer].db = [0 * b for b in network[layer].db ]
+        network[layer].dw = \
+            [[0 * w for w in inner ] for inner in network[layer].dw]
+    return network
+
+def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
+                  i_size: int, o_size: int) -> List[Layer]:
+    """
+    Given a training set (with labels) and the sizes of the input and output
+    layers, create and train a network by iteratively propagating inputs
+    (forward) and their losses (backward) to update its weights and biases.
+    Return the resulting trained network.
+    """
+    num_args: int = int(i_size/o_size)
+    num_layers: int = 1 
+    num_levels: int = 8 
+    num_batches: int = 100 if num_args == 1 else 300
+    max_cost: float = 0.09
+    batch_size: int = 100 
+    lr: float = 0.0
+    cost: float = 0.0
+    #print("Batch Size: ", batch_size)
+
+    # Initialize the network
+    network = init_layers(num_layers, num_levels, i_size, o_size)
+    # Forward propagate for batch_size samples
+    for b in range(num_batches):
+        lr = update_lr(b, num_args)
+        for i in range(batch_size):
+            input_vec = random.choice(list(samples.keys()))
+            expect_out = samples[input_vec]
+            # y is the final output of forward propagation
+            y = propagate_forward(network, input_vec)
+            cost = cost + get_cost(y, expect_out)
+            # Now backprop it
+            backprop(network, num_layers, y, input_vec, expect_out)
+        cost = cost/batch_size
+        if(cost < max_cost):
+            #print("Cost is sufficiently low. Stop Training.")
+            return network
+        #print("Avg Cost: ", cost)
+        cost = 0.0
+        # Average out db and dw
+        for layer in range(num_layers):
+            network[layer].db = [db/batch_size for db in network[layer].db]
+            network[layer].dw = [[ dw/batch_size for dw in inner ] for \
+                inner in network[layer].dw]
+        # Update the weights and biases
+        network = update_network(network, lr, num_layers)
+            
+    return network
 
     
 def propagate_forward(layers: List[Layer], sample: List[int]) \
@@ -330,7 +347,6 @@ def propagate_forward(layers: List[Layer], sample: List[int]) \
     """
     layer_input = sample
     for i in range(len(layers)):
-        #print("Layer Input: ", layer_input)
         layer_input = layers[i].activate(layer_input)
     
     return layer_input
@@ -350,7 +366,12 @@ def count_matches(inputs: Tuple[int], outputs: Tuple[int]) \
 
 def main() -> None:
     random.seed(0)
-    f = lambda x: x // 2    # operation to learn
+    #f = lambda x: 130  # operation to learn
+    #f = lambda x, y: x + y   # operation to learn
+    f = lambda x: x // 2  # operation to learn
+    #f = lambda x, y: x  # operation to learn
+    #f = lambda x, y: x | y  # operation to learn
+    #f = lambda x, y: x & y  # operation to learn
     n_args = 1              # arity of operation
     n_bits = 8              # size of each operand
     pcnt_right = 0
@@ -358,7 +379,7 @@ def main() -> None:
     total = 0
 
     samples = create_samples(f, n_args, n_bits)
-    train_pct = 0.95
+    train_pct = 0.99
     train_set = {inputs: samples[inputs]
                for inputs in random.sample(list(samples),
                                            k=int(len(samples) * train_pct))}
@@ -378,6 +399,7 @@ def main() -> None:
         total += n_bits
         print("Match: ", count_matches(bits, samples[inputs]), end="\n\n")
     print("Pcnt Right: ", total_right/total*100)
+    print(network)
 
 if __name__ == "__main__":
     main()
