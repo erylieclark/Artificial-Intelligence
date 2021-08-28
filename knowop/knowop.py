@@ -57,13 +57,23 @@ class Math:
         """
         epsilon = 1e-5
         return min(max(1 / (1 + math.e ** -z), epsilon), 1 - epsilon)
+    
+    #@staticmethod
+    #def sigmoid_prime(z: float) -> float:
+    #    """
+    #    The activation function for the output layer.
+    #    """
+    #    return Math.sigmoid(z) * (1 - Math.sigmoid(z))
 
     @staticmethod
-    def sigmoid_prime(z: float) -> float:
+    def sigmoid_prime(z: Tuple[float, ...]) -> Tuple[float, ...]:
         """
         The activation function for the output layer.
         """
-        return Math.sigmoid(z) * (1 - Math.sigmoid(z))
+        gpz: List[float] = []
+        for i in range(len(z)):
+            gpz.append(Math.sigmoid(z[i]) * (1 - Math.sigmoid(z[i])))
+        return tuple(gpz)
 
     @staticmethod
     def loss(actual: float, expect: float) -> float:
@@ -81,15 +91,15 @@ class Math:
     #    return -expect / actual + (1 - expect) / (1 - actual)
 
     @staticmethod
-    def loss_prime(actual: List[float, ...], expect: List[float, ...]) \
-        -> List[float, ...]:
+    def loss_prime(actual: Tuple[float, ...], expect: Tuple[int, ...]) \
+        -> Tuple[float, ...]:
         """
         Return the derivative of the loss.
         """
         loss: List[float] = []
         for i in range(len(actual)):
             loss.append(-expect[i] / actual[i] + (1 - expect[i]) / (1 - actual[i]))
-        return loss
+        return tuple(loss)
 
 
 class Layer:  # do not modify class
@@ -259,10 +269,13 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
     Back prop
     """
     da: List[float] = []
-    gpz: List[float] = []
-    da = get_loss_prime(y, expect) 
-    for n in range(len(network[layers-1].z)):
-        gpz.append(Math.sigmoid_prime(network[layers-1].z[n]))
+    #gpz: List[float] = []
+    gpz: Tuple[float] = []
+    #da = get_loss_prime(y, expect) 
+    da = Math.loss_prime(y, expect) 
+    gpz = Math.sigmoid_prime(tuple(network[layers-1].z))
+    #for n in range(len(network[layers-1].z)):
+    #    gpz.append(Math.sigmoid_prime(network[layers-1].z[n]))
     #gpz = get_active_func(Math.sigmoid_prime, network[layers-1].z)
     for i in range(layers-1, -1, -1):
         temp_dz = [a*b for a, b in zip(da, gpz)]
