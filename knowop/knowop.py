@@ -44,11 +44,14 @@ class Math:
         return z if z > 0 else 0.01 * z
 
     @staticmethod
-    def relu_prime(z: float) -> float:
+    def relu_prime(z: Tuple[float, ...]) -> Tuple[float, ...]:
         """
         Return the derivative of the ReLU function.
         """
-        return 1.0 if z > 0 else 0.0
+        gpz: List[float] = []
+        for i in range(len(z)):
+            gpz.append(1.0 if z[i] > 0 else 0.0)
+        return tuple(gpz)
 
     @staticmethod
     def sigmoid(z: float) -> float:
@@ -58,13 +61,6 @@ class Math:
         epsilon = 1e-5
         return min(max(1 / (1 + math.e ** -z), epsilon), 1 - epsilon)
     
-    #@staticmethod
-    #def sigmoid_prime(z: float) -> float:
-    #    """
-    #    The activation function for the output layer.
-    #    """
-    #    return Math.sigmoid(z) * (1 - Math.sigmoid(z))
-
     @staticmethod
     def sigmoid_prime(z: Tuple[float, ...]) -> Tuple[float, ...]:
         """
@@ -82,13 +78,6 @@ class Math:
         """
         return -(expect * math.log10(actual)
                  + (1 - expect) * math.log10(1 - actual))
-
-    #@staticmethod
-    #def loss_prime(actual: float, expect: float) -> float:
-    #    """
-    #    Return the derivative of the loss.
-    #    """
-    #    return -expect / actual + (1 - expect) / (1 - actual)
 
     @staticmethod
     def loss_prime(actual: Tuple[float, ...], expect: Tuple[int, ...]) \
@@ -243,40 +232,15 @@ def update_lr(cur_batch: int, args: int) \
     return lr
 
 
-#def get_loss_prime(actual: Tuple[float, ...], expect: Tuple[float, ...]) \
-#-> List[float]:
-#    """
-#    Get loss of each individual output neruon
-#    """
-#    loss: List[float] = []
-#    for i in range(len(actual)):
-#        loss.append(Math.loss_prime(actual[i], expect[i]))
-#    return loss 
-
-
-#def get_active_func(given_func: Callable, vals: List[float]) \
-#-> List[float]:
-#    Return a vector containing the results from the given function
-#    new_vals: List[float] = []
-#    for i in range(len(vals)):
-#        new_vals.append(given_func(vals[i]))
-#    return new_vals
-
-
 def backprop(network: List[Layer], layers: int, y: Tuple[float, ...], \
 sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
     """
     Back prop
     """
-    da: List[float] = []
-    #gpz: List[float] = []
-    gpz: Tuple[float] = []
-    #da = get_loss_prime(y, expect) 
+    #da: List[float] = []
+    #gpz: Tuple[float] = []
     da = Math.loss_prime(y, expect) 
     gpz = Math.sigmoid_prime(tuple(network[layers-1].z))
-    #for n in range(len(network[layers-1].z)):
-    #    gpz.append(Math.sigmoid_prime(network[layers-1].z[n]))
-    #gpz = get_active_func(Math.sigmoid_prime, network[layers-1].z)
     for i in range(layers-1, -1, -1):
         temp_dz = [a*b for a, b in zip(da, gpz)]
         dz = [[el] for el in temp_dz]
@@ -292,10 +256,7 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
             da_temp = Math.matmul(Math.transpose(network[i].w), dz)
             # Flatten the list
             da = list(itertools.chain(*da_temp))
-            #gpz = get_active_func(Math.relu_prime, network[i-1].z)
-            gpz = []
-            for n in range(len(network[i-1].z)):
-                gpz.append(Math.relu_prime(network[i-1].z[n]))
+            gpz = Math.relu_prime(tuple(network[i-1].z))
         else:
             break
     return network
