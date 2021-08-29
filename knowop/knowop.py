@@ -292,14 +292,12 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
         # Add derivative of bias to total derivative of bias to avg later
         network[i].db = Math.elementwise_vector_add(network[i].db, \
             list(itertools.chain(*dz)))
-        #network[i].db = [sum(x) for x in zip(network[i].db, \
-        #    list(itertools.chain(*dz)))]
-        if i >= 0:
+        if i >= 0:  # If more layers are left get new da and gpz and repeat
             da_temp = Math.matmul(Math.transpose(network[i].w), dz)
-            # Flatten the list
+            # Flatten the matrix to a list
             da = list(itertools.chain(*da_temp))
             gpz = Math.relu_prime(tuple(network[i-1].z))
-        else:
+        else:       # If at the first layer, stop
             break
     return network
 
@@ -310,14 +308,20 @@ def update_network(network: List[Layer], lr: float, num_layers: int) \
     Update weights and biases
     """
     for layer in range(num_layers):
-        dw = network[layer].dw
+        dw = network[layer].dw      # Simplifies following statements
+        w = network[layer].w        # Simplifies following statements
+        # Get the value to change the weight by (*-1 to subtract from weight)
         change_w = [[-1 * lr * w for w in inner] for inner in dw]
-        network[layer].w = add_weights(network[layer].w, change_w)
-        db = network[layer].db
+        #network[layer].w = add_weights(network[layer].w, change_w)
+        network[layer].w = Math.elementwise_matrix_add(w, change_w)
+        db = network[layer].db      # Simplifies following statements
+        b = network[layer].b        # Simplifies following statements
+        # Get the value to change the bias by (*-1 to subtract from bias)
         change_b = [-1 * lr * b for b in db]
+        network[layer].b = Math.elementwise_vector_add(b, change_b)
+        #network[layer].b = \
+        #    [sum(x) for x in zip(network[layer].b, change_b)]
         # Set to a 0 list before the start of next batch
-        network[layer].b = \
-            [sum(x) for x in zip(network[layer].b, change_b)]
         network[layer].db = [0 * b for b in network[layer].db]
         network[layer].dw = \
             [[0 * w for w in inner] for inner in network[layer].dw]
@@ -358,8 +362,8 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
             # Now backprop it
             network = backprop(network, num_layers, y, input_vec, expect_out)
         cost = cost/batch_size
-        if cost < max_cost:
-            #print("Cost is sufficiently low. Stop Training.")
+        if cost < max_cost: # Check if avg cost of batch is low enough
+            print("Cost is sufficiently low. Stop Training.")
             return network
         #print("Avg Cost: ", cost)
         cost = 0.0
