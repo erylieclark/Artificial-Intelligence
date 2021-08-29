@@ -121,6 +121,14 @@ class Math:
         for i in range(len(list1)):
             new_list.append([sum(x) for x in zip(list1[i], list2[i])])
         return new_list
+    
+    @staticmethod
+    def elementwise_vector_add(list1: List[float], list2: List[float])\
+        -> List[float]:
+        """
+        Add two vectors together elementwise
+        """
+        return [sum(x) for x in zip(list1, list2)]
 
 
 class Layer:  # do not modify class
@@ -278,15 +286,14 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
                     #   of the previous layer
             network[i].dw = Math.elementwise_matrix_add(Math.matmul(dz, \
                 [network[i-1].a]), network[i].dw)
-            #network[i].dw = add_weights(Math.matmul(dz, [network[i-1].a]), \
-            #    network[i].dw)
         else:       # For the first layer use the actual input
             network[i].dw = Math.elementwise_matrix_add(Math.matmul(dz, \
                 [sample]), network[i].dw)
-            #network[i].dw = add_weights(Math.matmul(dz, [sample]), \
-            #    network[i].dw)
-        network[i].db = [sum(x) for x in zip(network[i].db, \
-            list(itertools.chain(*dz)))]
+        # Add derivative of bias to total derivative of bias to avg later
+        network[i].db = Math.elementwise_vector_add(network[i].db, \
+            list(itertools.chain(*dz)))
+        #network[i].db = [sum(x) for x in zip(network[i].db, \
+        #    list(itertools.chain(*dz)))]
         if i >= 0:
             da_temp = Math.matmul(Math.transpose(network[i].w), dz)
             # Flatten the list
