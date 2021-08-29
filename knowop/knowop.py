@@ -100,12 +100,12 @@ class Math:
         return tuple([a*b for a, b in zip(list1, list2)])
     
     @staticmethod
-    def horiz_2_vert_vector(vec: Tuple[float, ...]) -> Tuple[float, ...]:
+    def horiz_2_vert_vector(vec: Tuple[float, ...]) -> List[List[float]]:
         """
         Turn a horizontal vector [val, val ,val] into a vertical vector
         [[val], [val], [val]]
         """
-        return tuple([[element] for element in vec])
+        return [[element] for element in vec]
 
     @staticmethod
     def elementwise_matrix_add(list1: List[List[float]], \
@@ -130,6 +130,12 @@ class Math:
         """
         return [sum(x) for x in zip(list1, list2)]
 
+    @staticmethod
+    def flatten(lst: List[List[float]]) -> List[float]:
+        """
+        Add two vectors together elementwise
+        """
+        return list(itertools.chain(*lst))
 
 class Layer:  # do not modify class
 
@@ -242,19 +248,6 @@ def get_cost(actual: Tuple[float, ...], expect: Tuple[int, ...]) \
     return cost
 
 
-def add_weights(list1: List[List[float]], list2: List[List[float]]) \
--> List[List[float]]:
-    """
-    Update the weight matrices
-    """
-    new_list: List[List[float]] = []
-    assert len(list1) == len(list2)
-    assert len(list1[0]) == len(list2[0])
-    for i in range(len(list1)):
-        new_list.append([sum(x) for x in zip(list1[i], list2[i])])
-    return new_list
-
-
 def update_lr(cur_batch: int, args: int) \
 -> float:
     """
@@ -278,9 +271,9 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
     gpz = Math.sigmoid_prime(tuple(network[layers-1].z))
     for i in range(layers-1, -1, -1):
         # Multiply da and gpz element wise
-        dz = Math.elementwise_vector_mult(da, gpz)
+        temp_dz = Math.elementwise_vector_mult(da, gpz)
         # Transpose to a vertical vector
-        dz = Math.horiz_2_vert_vector(dz)
+        dz = Math.horiz_2_vert_vector(temp_dz)
         # Add derivative of weight to total derivative of weight to avg later
         if i > 0:   # For layers that are not the first layer, use the output
                     #   of the previous layer
@@ -288,14 +281,14 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
                 [network[i-1].a]), network[i].dw)
         else:       # For the first layer use the actual input
             network[i].dw = Math.elementwise_matrix_add(Math.matmul(dz, \
-                [sample]), network[i].dw)
+                [list(sample)]), network[i].dw)
         # Add derivative of bias to total derivative of bias to avg later
         network[i].db = Math.elementwise_vector_add(network[i].db, \
-            list(itertools.chain(*dz)))
+            Math.flatten(dz))
         if i >= 0:  # If more layers are left get new da and gpz and repeat
             da_temp = Math.matmul(Math.transpose(network[i].w), dz)
             # Flatten the matrix to a list
-            da = list(itertools.chain(*da_temp))
+            da = tuple(Math.flatten(da_temp))
             gpz = Math.relu_prime(tuple(network[i-1].z))
         else:       # If at the first layer, stop
             break
@@ -311,16 +304,13 @@ def update_network(network: List[Layer], lr: float, num_layers: int) \
         dw = network[layer].dw      # Simplifies following statements
         w = network[layer].w        # Simplifies following statements
         # Get the value to change the weight by (*-1 to subtract from weight)
-        change_w = [[-1 * lr * w for w in inner] for inner in dw]
-        #network[layer].w = add_weights(network[layer].w, change_w)
+        change_w = [[-1 * lr * i for i in inner] for inner in dw]
         network[layer].w = Math.elementwise_matrix_add(w, change_w)
         db = network[layer].db      # Simplifies following statements
         b = network[layer].b        # Simplifies following statements
         # Get the value to change the bias by (*-1 to subtract from bias)
-        change_b = [-1 * lr * b for b in db]
+        change_b = [-1 * lr * i for i in db]
         network[layer].b = Math.elementwise_vector_add(b, change_b)
-        #network[layer].b = \
-        #    [sum(x) for x in zip(network[layer].b, change_b)]
         # Set to a 0 list before the start of next batch
         network[layer].db = [0 * b for b in network[layer].db]
         network[layer].dw = \
@@ -338,9 +328,9 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
     num_args: int = int(i_size/o_size)
     num_layers: int = 1 
     num_levels: int = 8 
-    num_batches: int = 100 if num_args == 1 else 300
-    max_cost: float = 0.09
+    num_batches: int = 100 if num_args == 1 else 200
     batch_size: int = 100 
+    max_cost: float = 0.09
     lr: float = 0.0
     cost: float = 0.0
     #input_vec: Tuple[int, ...]
@@ -365,7 +355,7 @@ def train_network(samples: Dict[Tuple[int, ...], Tuple[int, ...]],
         if cost < max_cost: # Check if avg cost of batch is low enough
             print("Cost is sufficiently low. Stop Training.")
             return network
-        #print("Avg Cost: ", cost)
+        print("Avg Cost: ", cost)
         cost = 0.0
         # Average out db and dw
         for layer in range(num_layers):
@@ -384,14 +374,15 @@ def propagate_forward(layers: List[Layer], sample: Tuple[int, ...]) \
     Propagate Forward
     """
     # Change the sample fro Tuple[int] to List[float]
-    layer_input: List[float, ...] = []
+    float_sample: List[float] = []
     for i in range(len(sample)):
-        layer_input.append(float(sample[i]))
+        float_sample.append(float(sample[i]))
+    layer_input = tuple(float_sample)
     # Use weights and biases to get output of each layer and pass to next 
     for i in range(len(layers)):
         layer_input = layers[i].activate(layer_input)
     
-    return tuple(layer_input)
+    return layer_input
 
 
 def count_matches(inputs: Tuple[int, ...], outputs: Tuple[int, ...]) \
@@ -410,11 +401,11 @@ def main() -> None:
     random.seed(0)
     #f = lambda x: 130  # operation to learn
     #f = lambda x, y: x + y   # operation to learn
-    f = lambda x: x // 2  # operation to learn
+    #f = lambda x: x // 2  # operation to learn
     #f = lambda x, y: x  # operation to learn
     #f = lambda x, y: x | y  # operation to learn
-    #f = lambda x, y: x & y  # operation to learn
-    n_args = 1              # arity of operation
+    f = lambda x, y: x & y  # operation to learn
+    n_args = 2              # arity of operation
     n_bits = 8              # size of each operand
     total_right = 0
     total = 0
