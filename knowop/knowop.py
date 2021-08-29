@@ -107,6 +107,21 @@ class Math:
         """
         return tuple([[element] for element in vec])
 
+    @staticmethod
+    def elementwise_matrix_add(list1: List[List[float]], \
+        list2: List[List[float]]) -> List[List[float]]:
+        """
+        Add two matrices together elementwise
+        """
+        new_list: List[List[float]] = []
+        # Make sure matrices are of same size first
+        assert len(list1) == len(list2)
+        assert len(list1[0]) == len(list2[0])
+        # Add each element together and add the new list to the matrix
+        for i in range(len(list1)):
+            new_list.append([sum(x) for x in zip(list1[i], list2[i])])
+        return new_list
+
 
 class Layer:  # do not modify class
 
@@ -165,8 +180,6 @@ class Layer:  # do not modify class
         return tuple(self.a)
 
 
-
-
 def create_samples(f: Callable[..., int], n_args: int, n_bits: int,
 ) -> Dict[Tuple[int, ...], Tuple[int, ...]]:
     """
@@ -197,14 +210,12 @@ def init_layers(num_layers: int, num_levels: int, i_size: int, o_size: int) \
     if num_layers > 1:
         # First layer based on input size
         network.append(Layer((num_levels, i_size), False))
-
         # Middle Layers - each have same levels in and out
         for _ in range(1, num_layers - 1):
             network.append(Layer((num_levels, num_levels), True))
-
         # Last layer - has num levels going in, output size coming out
         network.append(Layer((o_size, num_levels), True))
-    else:
+    else: # Single layer has input size going in and output size coming out
         network.append(Layer((o_size, i_size), True))
         
     return network
@@ -231,7 +242,6 @@ def add_weights(list1: List[List[float]], list2: List[List[float]]) \
     new_list: List[List[float]] = []
     assert len(list1) == len(list2)
     assert len(list1[0]) == len(list2[0])
-    # Multiply list 2 by -1
     for i in range(len(list1)):
         new_list.append([sum(x) for x in zip(list1[i], list2[i])])
     return new_list
@@ -261,13 +271,20 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
     for i in range(layers-1, -1, -1):
         # Multiply da and gpz element wise
         dz = Math.elementwise_vector_mult(da, gpz)
+        # Transpose to a vertical vector
         dz = Math.horiz_2_vert_vector(dz)
-        if i > 0:
-            network[i].dw = add_weights(Math.matmul(dz, [network[i-1].a]), \
-                network[i].dw)
-        else:
-            network[i].dw = add_weights(Math.matmul(dz, [sample]), \
-                network[i].dw)
+        # Add derivative of weight to total derivative of weight to avg later
+        if i > 0:   # For layers that are not the first layer, use the output
+                    #   of the previous layer
+            network[i].dw = Math.elementwise_matrix_add(Math.matmul(dz, \
+                [network[i-1].a]), network[i].dw)
+            #network[i].dw = add_weights(Math.matmul(dz, [network[i-1].a]), \
+            #    network[i].dw)
+        else:       # For the first layer use the actual input
+            network[i].dw = Math.elementwise_matrix_add(Math.matmul(dz, \
+                [sample]), network[i].dw)
+            #network[i].dw = add_weights(Math.matmul(dz, [sample]), \
+            #    network[i].dw)
         network[i].db = [sum(x) for x in zip(network[i].db, \
             list(itertools.chain(*dz)))]
         if i >= 0:
