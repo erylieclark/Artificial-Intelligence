@@ -87,8 +87,25 @@ class Math:
         """
         loss: List[float] = []
         for i in range(len(actual)):
-            loss.append(-expect[i] / actual[i] + (1 - expect[i]) / (1 - actual[i]))
+            loss.append(-expect[i] / actual[i] +\
+                (1 - expect[i]) / (1 - actual[i]))
         return tuple(loss)
+        
+    @staticmethod
+    def elementwise_vector_mult(list1: Tuple[float, ...], \
+        list2: Tuple[float, ...]) -> Tuple[float, ...]:
+        """
+        Multiply two vectors elementwise
+        """
+        return tuple([a*b for a, b in zip(list1, list2)])
+    
+    @staticmethod
+    def horiz_2_vert_vector(vec: Tuple[float, ...]) -> Tuple[float, ...]:
+        """
+        Turn a horizontal vector [val, val ,val] into a vertical vector
+        [[val], [val], [val]]
+        """
+        return tuple([[element] for element in vec])
 
 
 class Layer:  # do not modify class
@@ -237,13 +254,14 @@ sample: Tuple[int, ...], expect: Tuple[int, ...]) -> List[Layer]:
     """
     Back prop
     """
-    #da: List[float] = []
+    #da: Tuple[float] = []
     #gpz: Tuple[float] = []
     da = Math.loss_prime(y, expect) 
     gpz = Math.sigmoid_prime(tuple(network[layers-1].z))
     for i in range(layers-1, -1, -1):
-        temp_dz = [a*b for a, b in zip(da, gpz)]
-        dz = [[el] for el in temp_dz]
+        # Multiply da and gpz element wise
+        dz = Math.elementwise_vector_mult(da, gpz)
+        dz = Math.horiz_2_vert_vector(dz)
         if i > 0:
             network[i].dw = add_weights(Math.matmul(dz, [network[i-1].a]), \
                 network[i].dw)
